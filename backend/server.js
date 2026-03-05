@@ -17,8 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const authRoutes = require('./routes/authRoutes');
+const requestRoutes = require("./routes/requestRoutes");
 
 app.use('/api/auth', authRoutes);
+app.use("/api/requests", requestRoutes);
 
 async function startServer() {
     try {
