@@ -1,7 +1,6 @@
 
-const API_BASE_URL = 'http://172.16.61.119:5000/api';
+const API_BASE_URL = 'http://192.168.29.70:5000/api';
 
-// Helper function for making API requests
 async function apiRequest(endpoint, method = 'GET', data = null) {
     const url = `${API_BASE_URL}${endpoint}`;
     
@@ -30,7 +29,6 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
     }
 }
 
-// Auth specific functions
 export const authAPI = {
     signup: (userData) => apiRequest('/auth/signup', 'POST', userData),
     login: (credentials) => apiRequest('/auth/login', 'POST', credentials),

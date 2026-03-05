@@ -22,29 +22,35 @@ export default function Layout() {
                 },
             }}
         >
-            {/* Auth screens - no tab bar */}
             <Tabs.Screen
                 name="index"
                 options={{
-                    href: null, // Hide from tabs
+                    href: null, 
                 }}
             />
+
+            <Tabs.Screen
+                name="services/api"
+                options={{
+                    href: null,  
+                }}
+            />
+
             <Tabs.Screen
                 name="login"
                 options={{
-                    href: null, // Hide from tabs
+                    href: null, 
                     headerShown: false,
                 }}
             />
             <Tabs.Screen
                 name="signup"
                 options={{
-                    href: null, // Hide from tabs
+                    href: null, 
                     headerShown: false,
                 }}
             />
 
-            {/* Main app screens - with tab bar */}
             <Tabs.Screen
                 name="home"
                 options={{

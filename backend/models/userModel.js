@@ -1,48 +1,42 @@
-// backend/models/userModel.js
 const mongoDB = require('../config/db');
 
-class UserModel {
-    constructor() {
-        this.collectionName = 'users';
-    }
+const collectionName = 'users';
 
-    // Get the users collection
-    async getCollection() {
-        return mongoDB.getCollection(this.collectionName);
-    }
-
-    // Create a new user
-    async createUser(userData) {
-        const collection = await this.getCollection();
-        
-        // Add timestamps
-        const newUser = {
-            ...userData,
-            createdAt: new Date(),
-            updatedAt: new Date()
-        };
-        
-        const result = await collection.insertOne(newUser);
-        return result;
-    }
-
-    // Find user by email
-    async findByEmail(email) {
-        const collection = await this.getCollection();
-        return await collection.findOne({ email });
-    }
-
-    // Find user by username
-    async findByUsername(username) {
-        const collection = await this.getCollection();
-        return await collection.findOne({ username });
-    }
-
-    // Find user by ID
-    async findById(id) {
-        const collection = await this.getCollection();
-        return await collection.findOne({ _id: id });
-    }
+async function getCollection() {
+    return mongoDB.getCollection(collectionName);
 }
 
-module.exports = new UserModel();
+async function createUser(userData) {
+    const collection = await getCollection();
+
+    const newUser = {
+        ...userData,
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
+
+    const result = await collection.insertOne(newUser);
+    return result;
+}
+
+async function findByEmail(email) {
+    const collection = await getCollection();
+    return await collection.findOne({ email });
+}
+
+async function findByUsername(username) {
+    const collection = await getCollection();
+    return await collection.findOne({ username });
+}
+
+async function findById(id) {
+    const collection = await getCollection();
+    return await collection.findOne({ _id: id });
+}
+
+module.exports = {
+    createUser,
+    findByEmail,
+    findByUsername,
+    findById
+};

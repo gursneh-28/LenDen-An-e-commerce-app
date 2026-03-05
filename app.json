@@ -2,6 +2,7 @@
   "expo": {
     "name": "LenDen-An-e-commerce-app",
     "slug": "LenDen-An-e-commerce-app",
+    "scheme": "LenDen-An-e-commerce-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -1,14 +1,11 @@
-// backend/controllers/authController.js
 const bcrypt = require('bcrypt');
 const userModel = require('../models/userModel');
 
 class AuthController {
-    // User Signup
     async signup(req, res) {
         try {
             const { username, email, password } = req.body;
 
-            // Validation - Check if all fields are provided
             if (!username || !email || !password) {
                 return res.status(400).json({
                     success: false,
@@ -16,7 +13,6 @@ class AuthController {
                 });
             }
 
-            // Check if user already exists with same email
             const existingUser = await userModel.findByEmail(email);
             if (existingUser) {
                 return res.status(400).json({
@@ -25,19 +21,8 @@ class AuthController {
                 });
             }
 
-            // Check if username is taken
-            const existingUsername = await userModel.findByUsername(username);
-            if (existingUsername) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Username already taken'
-                });
-            }
-
-            // Hash the password (10 salt rounds)
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            // Create new user
             const newUser = {
                 username,
                 email,
@@ -46,7 +31,6 @@ class AuthController {
 
             const result = await userModel.createUser(newUser);
 
-            // Remove password from response
             const { password: _, ...userWithoutPassword } = newUser;
 
             res.status(201).json({
@@ -66,12 +50,10 @@ class AuthController {
         }
     }
 
-    // User Login
     async login(req, res) {
         try {
             const { email, password } = req.body;
 
-            // Validation
             if (!email || !password) {
                 return res.status(400).json({
                     success: false,
@@ -79,10 +61,8 @@ class AuthController {
                 });
             }
 
-            // Find user by email
             const user = await userModel.findByEmail(email);
-            
-            // Check if user exists
+
             if (!user) {
                 return res.status(401).json({
                     success: false,
@@ -90,7 +70,6 @@ class AuthController {
                 });
             }
 
-            // Compare passwords
             const isPasswordValid = await bcrypt.compare(password, user.password);
             
             if (!isPasswordValid) {
@@ -100,7 +79,6 @@ class AuthController {
                 });
             }
 
-            // Remove password from response
             const { password: _, ...userWithoutPassword } = user;
 
             res.status(200).json({

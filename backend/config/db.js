@@ -1,68 +1,57 @@
 const { MongoClient } = require('mongodb');
 
-class MongoDB {
-    constructor() {
-        this.client = null;
-        this.db = null;
-    }
+const uri = process.env.MONGODB_URI;
 
-    async connect() {
-        try {
-            const uri = process.env.MONGODB_URI;
-            
-            if (!uri) {
-                throw new Error('MONGODB_URI is not defined in environment variables');
-            }
+if (!uri) {
+    throw new Error('MONGODB_URI is not defined in environment variables');
+}
 
-            this.client = new MongoClient(uri, {
-                // These options help with connection stability
-                connectTimeoutMS: 5000,
-                serverSelectionTimeoutMS: 5000
-            });
+const client = new MongoClient(uri, {
+    connectTimeoutMS: 5000,
+    serverSelectionTimeoutMS: 5000
+});
 
-            // Connect to the MongoDB cluster
-            await this.client.connect();
-            
-            // Get reference to the database
-            this.db = this.client.db();
-            
-            console.log('✅ MongoDB connected successfully');
-            
-            // Test the connection by running a simple command
-            await this.db.command({ ping: 1 });
-            console.log('✅ Database ping successful');
+let db = null;
 
-            return this.db;
-        } catch (error) {
-            console.error('❌ MongoDB connection error:', error.message);
-            throw error;
-        }
-    }
+async function connect() {
+    try {
+        await client.connect();
 
-    // Get database instance
-    getDb() {
-        if (!this.db) {
-            throw new Error('Database not initialized. Call connect() first.');
-        }
-        return this.db;
-    }
+        db = client.db(); 
 
-    // Close connection (useful for graceful shutdown)
-    async close() {
-        if (this.client) {
-            await this.client.close();
-            console.log('🔌 MongoDB connection closed');
-        }
-    }
+        console.log('MongoDB connected successfully');
 
-    // Helper method to get a collection
-    getCollection(collectionName) {
-        const db = this.getDb();
-        return db.collection(collectionName);
+        await db.command({ ping: 1 });
+        console.log('Database ping successful');
+
+        return db;
+    } catch (error) {
+        console.error('MongoDB connection error:', error.message);
+        throw error;
     }
 }
 
-// Create a singleton instance
-const mongoDB = new MongoDB();
+function getDb() {
+    if (!db) {
+        throw new Error('Database not initialized. Call connect() first.');
+    }
+    return db;
+}
 
-module.exports = mongoDB;
+async function close() {
+    if (client) {
+        await client.close();
+        console.log('MongoDB connection closed');
+    }
+}
+
+function getCollection(collectionName) {
+    return getDb().collection(collectionName);
+}
+
+module.exports = {
+    connect,
+    getDb,
+    close,
+    getCollection
+};
