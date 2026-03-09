@@ -17,8 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const authRoutes = require('./routes/authRoutes');
+const itemRoutes = require('./routes/itemRoutes');
 const requestRoutes = require("./routes/requestRoutes");
 
+app.use("/api/items", itemRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/requests", requestRoutes);
 
@@ -26,7 +28,7 @@ async function startServer() {
     try {
         await mongoDB.connect();
 
-        app.listen(PORT, () => {
+        app.listen(PORT, '0.0.0.0',() => {
             console.log(`Server is running on http://localhost:${PORT}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
         });

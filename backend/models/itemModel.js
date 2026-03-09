@@ -1,35 +1,35 @@
 const mongoDB = require("../config/db");
 const { ObjectId } = require("mongodb");
 
-const collectionName = "requests";
+const collectionName = "items";
 
 async function getCollection() {
   return mongoDB.getCollection(collectionName);
 }
 
-async function createRequest(data) {
+async function createItem(data) {
   const collection = await getCollection();
   const result = await collection.insertOne({ ...data, createdAt: new Date() });
   return result;
 }
 
-async function getAllRequests() {
+async function getAllItems() {
   const collection = await getCollection();
   // Newest first
   return await collection.find().sort({ createdAt: -1 }).toArray();
 }
 
-async function getRequestsByEmail(email) {
+async function getItemsByEmail(email) {
   const collection = await getCollection();
-  return await collection.find({ requestedBy: email }).sort({ createdAt: -1 }).toArray();
+  return await collection.find({ uploadedBy: email }).sort({ createdAt: -1 }).toArray();
 }
 
-async function getRequestById(id) {
+async function getItemById(id) {
   const collection = await getCollection();
   return await collection.findOne({ _id: new ObjectId(id) });
 }
 
-async function updateRequest(id, fields) {
+async function updateItem(id, fields) {
   const collection = await getCollection();
   await collection.updateOne(
     { _id: new ObjectId(id) },
@@ -37,16 +37,16 @@ async function updateRequest(id, fields) {
   );
 }
 
-async function deleteRequest(id) {
+async function deleteItem(id) {
   const collection = await getCollection();
   return await collection.deleteOne({ _id: new ObjectId(id) });
 }
 
 module.exports = {
-  createRequest,
-  getAllRequests,
-  getRequestsByEmail,
-  getRequestById,
-  updateRequest,
-  deleteRequest,
+  createItem,
+  getAllItems,
+  getItemsByEmail,
+  getItemById,
+  updateItem,
+  deleteItem,
 };

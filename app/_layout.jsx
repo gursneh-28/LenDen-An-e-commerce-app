@@ -62,21 +62,21 @@ export default function Layout() {
             />
 
             <Tabs.Screen
-                name="upload"
-                options={{
-                    title: 'Upload',
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="cloud-upload" size={size} color={color} />
-                    ),
-                }}
-            />
-
-            <Tabs.Screen
                 name="request"
                 options={{
                     title: 'Request',
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="cart" size={size} color={color} />
+                    ),
+                }}
+            />
+
+            <Tabs.Screen
+                name="upload"
+                options={{
+                    title: 'Upload',
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="cloud-upload" size={size} color={color} />
                     ),
                 }}
             />
@@ -95,6 +95,7 @@ export default function Layout() {
                 name="profile"
                 options={{
                     title: 'Profile',
+                    headerShown: false,
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="person" size={size} color={color} />
                     ),

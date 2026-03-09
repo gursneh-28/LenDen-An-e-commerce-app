@@ -1,22 +1,13 @@
 import React, { useState, useCallback } from "react";
 import {
-  View,
-  Text,
-  FlatList,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
+  View, Text, FlatList, Image, TouchableOpacity,
+  StyleSheet, ActivityIndicator, RefreshControl,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { itemAPI } from "./services/api";
 
 function formatDate(iso) {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-  });
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 function ItemCard({ item }) {
@@ -31,15 +22,25 @@ function ItemCard({ item }) {
       </View>
       <View style={s.cardBody}>
         <Text style={s.cardDescription} numberOfLines={2}>{item.description}</Text>
+
+        {/* Uploader email */}
+        <View style={s.uploaderRow}>
+          <View style={s.uploaderDot} />
+          <Text style={s.uploaderText} numberOfLines={1}>
+            {item.uploaderName || item.uploadedBy}
+          </Text>
+          <Text style={s.uploaderEmail} numberOfLines={1}>{item.uploadedBy}</Text>
+        </View>
+
         <View style={s.cardFooter}>
-          <Text style={s.cardPrice}>₹{item.price.toLocaleString()}</Text>
+          <Text style={s.cardPrice}>₹{item.price?.toLocaleString()}</Text>
           {isRent && item.availability?.length > 0 && (
             <View style={s.availRow}>
               <Text style={s.availIcon}>📅</Text>
               <Text style={s.availText}>
                 {item.availability.length === 1
                   ? `${formatDate(item.availability[0].start)} – ${formatDate(item.availability[0].end)}`
-                  : `${item.availability.length} available periods`}
+                  : `${item.availability.length} periods`}
               </Text>
             </View>
           )}
@@ -71,25 +72,15 @@ export default function Home() {
     }
   }, []);
 
-  // Re-fetch every time this screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchItems();
-    }, [fetchItems])
-  );
+  useFocusEffect(useCallback(() => { fetchItems(); }, [fetchItems]));
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchItems();
-  };
-
+  const onRefresh = () => { setRefreshing(true); fetchItems(); };
   const filtered = items.filter((i) => filter === "all" || i.type === filter);
 
   return (
     <View style={s.screen}>
       <View style={s.header}>
         <View>
-          <Text style={s.headerTitle}>Marketplace</Text>
           <Text style={s.headerSub}>{items.length} listings</Text>
         </View>
         <TouchableOpacity style={s.uploadBtn} onPress={() => router.push("/upload")}>
@@ -99,11 +90,7 @@ export default function Home() {
 
       <View style={s.filters}>
         {[{ key: "all", label: "All" }, { key: "sell", label: "For Sale" }, { key: "rent", label: "For Rent" }].map(({ key, label }) => (
-          <TouchableOpacity
-            key={key}
-            style={[s.pill, filter === key && s.pillActive]}
-            onPress={() => setFilter(key)}
-          >
+          <TouchableOpacity key={key} style={[s.pill, filter === key && s.pillActive]} onPress={() => setFilter(key)}>
             <Text style={[s.pillText, filter === key && s.pillTextActive]}>{label}</Text>
           </TouchableOpacity>
         ))}
@@ -114,9 +101,7 @@ export default function Home() {
       ) : error ? (
         <View style={s.centered}>
           <Text style={s.errorText}>{error}</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={fetchItems}>
-            <Text style={s.retryText}>Retry</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={s.retryBtn} onPress={fetchItems}><Text style={s.retryText}>Retry</Text></TouchableOpacity>
         </View>
       ) : filtered.length === 0 ? (
         <View style={s.centered}>
@@ -140,7 +125,7 @@ export default function Home() {
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f8f7f4" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20, paddingTop: 60, paddingBottom: 16 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
   headerTitle: { fontSize: 28, fontWeight: "700", color: "#1a1a1a", letterSpacing: -0.5 },
   headerSub: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
   uploadBtn: { backgroundColor: "#1a1a1a", paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
@@ -152,13 +137,17 @@ const s = StyleSheet.create({
   pillTextActive: { color: "#fff" },
   list: { paddingHorizontal: 20, paddingBottom: 40 },
   card: { backgroundColor: "#fff", borderRadius: 18, marginBottom: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  cardImage: { width: "100%", height: 200, resizeMode: "cover" },
+  cardImage: { width: "100%", height: 190, resizeMode: "cover" },
   badge: { position: "absolute", top: 12, right: 12, backgroundColor: "rgba(255,255,255,0.95)", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   badgeRent: { color: "#2563eb" },
   badgeSell: { color: "#16a34a" },
-  cardBody: { padding: 16 },
-  cardDescription: { fontSize: 15, color: "#1a1a1a", lineHeight: 22, marginBottom: 10 },
+  cardBody: { padding: 14 },
+  cardDescription: { fontSize: 15, color: "#1a1a1a", lineHeight: 22, marginBottom: 8 },
+  uploaderRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10, flexWrap: "wrap" },
+  uploaderDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#d1d5db" },
+  uploaderText: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  uploaderEmail: { fontSize: 11, color: "#9ca3af", fontFamily: "monospace" },
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cardPrice: { fontSize: 18, fontWeight: "700", color: "#1a1a1a" },
   availRow: { flexDirection: "row", alignItems: "center", gap: 4 },

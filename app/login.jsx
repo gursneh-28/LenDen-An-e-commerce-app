@@ -12,7 +12,7 @@ import {
     ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
-import { authAPI } from './services/api';
+import { authAPI, saveToken, saveUser } from './services/api'; // ✅ added authAPI
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -20,7 +20,6 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
 
     const handleLogin = async () => {
-        // Basic validation
         if (!email || !password) {
             Alert.alert('Error', 'Please fill in all fields');
             return;
@@ -29,21 +28,19 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             const response = await authAPI.login({ email, password });
-            
+
             if (response.success) {
-                Alert.alert('Success', 'Login successful!', [
-                    { text: 'OK', onPress: () => router.push('/home') }
-                ]);
+                // ✅ Save token and user so all future API calls work
+                await saveToken(response.token);
+                await saveUser(response.user);
+
+                router.replace('/home'); // ✅ replace instead of push (can't go back to login)
             }
         } catch (error) {
             Alert.alert('Login Failed', error.message);
         } finally {
             setLoading(false);
         }
-    };
-
-    const navigateToSignup = () => {
-        router.push('/signup');
     };
 
     return (
@@ -99,7 +96,7 @@ export default function LoginScreen() {
 
                     <View style={styles.signupContainer}>
                         <Text style={styles.signupText}>Don't have an account? </Text>
-                        <TouchableOpacity onPress={navigateToSignup}>
+                        <TouchableOpacity onPress={() => router.push('/signup')}>
                             <Text style={styles.signupLink}>Sign Up</Text>
                         </TouchableOpacity>
                     </View>

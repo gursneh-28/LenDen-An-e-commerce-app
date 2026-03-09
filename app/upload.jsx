@@ -121,7 +121,6 @@ export default function Upload() {
 
   return (
     <ScrollView style={s.screen} contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-      <Text style={s.heading}>List an Item</Text>
 
       <View style={s.toggle}>
         {["sell", "rent"].map((t) => (
