@@ -29,12 +29,6 @@ export default function Layout() {
                 }}
             />
 
-            <Tabs.Screen
-                name="services/api"
-                options={{
-                    href: null,  
-                }}
-            />
 
             <Tabs.Screen
                 name="login"

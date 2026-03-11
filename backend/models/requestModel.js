@@ -14,6 +14,7 @@ async function createRequest(data) {
 }
 
 async function getAllRequests(org) {
+  const collection = await getCollection();
   return await collection.find({ org: org }).sort({ createdAt: -1 }).toArray();
 }
 

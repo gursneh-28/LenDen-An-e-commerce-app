@@ -22,7 +22,7 @@ class AuthController {
           message: 'User already exists with this email',
         });
       }
-      
+
       const org = email.split('@')[1];
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -31,11 +31,11 @@ class AuthController {
         username,
         email,
         password: hashedPassword,
-        org,         
+        org,
       });
 
       const token = jwt.sign(
-        { userId: result.insertedId, email, name: username, org }, 
+        { userId: result.insertedId, email, name: username, org },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -44,7 +44,7 @@ class AuthController {
         success: true,
         message: 'User created successfully',
         token,
-        user: { id: result.insertedId, username, email, org },  
+        user: { id: result.insertedId, username, email, org },
       });
 
     } catch (error) {
@@ -75,7 +75,7 @@ class AuthController {
       }
 
       const token = jwt.sign(
-        { userId: user._id, email: user.email, name: user.username, org: user.org }, 
+        { userId: user._id, email: user.email, name: user.username, org: user.org },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
@@ -84,7 +84,7 @@ class AuthController {
         success: true,
         message: 'Login successful',
         token,
-        user: { id: user._id, username: user.username, email: user.email, org: user.org },  
+        user: { id: user._id, username: user.username, email: user.email, org: user.org },
       });
 
     } catch (error) {

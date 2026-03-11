@@ -14,7 +14,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import { itemAPI } from "./services/api";
+import { itemAPI } from "../services/api";
 
 export default function Upload() {
   const router = useRouter();

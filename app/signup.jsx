@@ -12,7 +12,17 @@ import {
     ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
-import { authAPI } from './services/api';
+import { authAPI } from '../services/api';
+
+function showAlert(title, message, onOk) {
+    if (Platform.OS === 'web') {
+        window.alert(`${title}\n${message}`);
+        if (onOk) onOk();
+    } else {
+        const buttons = onOk ? [{ text: 'OK', onPress: onOk }] : undefined;
+        Alert.alert(title, message, buttons);
+    }
+}
 
 export default function SignupScreen() {
     const [username, setUsername] = useState('');
@@ -24,17 +34,17 @@ export default function SignupScreen() {
     const handleSignup = async () => {
         // Validation
         if (!username || !email || !password || !confirmPassword) {
-            Alert.alert('Error', 'Please fill in all fields');
+            showAlert('Error', 'Please fill in all fields');
             return;
         }
 
         if (password !== confirmPassword) {
-            Alert.alert('Error', 'Passwords do not match');
+            showAlert('Error', 'Passwords do not match');
             return;
         }
 
         if (password.length < 6) {
-            Alert.alert('Error', 'Password must be at least 6 characters');
+            showAlert('Error', 'Password must be at least 6 characters');
             return;
         }
 
@@ -43,14 +53,14 @@ export default function SignupScreen() {
             const response = await authAPI.signup({ username, email, password });
             
             if (response.success) {
-                Alert.alert(
+                showAlert(
                     'Success', 
                     'Account created successfully! Please login.',
-                    [{ text: 'OK', onPress: () => router.push('/login') }]
+                    () => router.push('/login')
                 );
             }
         } catch (error) {
-            Alert.alert('Signup Failed', error.message);
+            showAlert('Signup Failed', error.message);
         } finally {
             setLoading(false);
         }

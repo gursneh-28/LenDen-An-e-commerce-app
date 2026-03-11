@@ -12,7 +12,15 @@ import {
     ScrollView
 } from 'react-native';
 import { router } from 'expo-router';
-import { authAPI, saveToken, saveUser } from './services/api'; // ✅ added authAPI
+import { authAPI, saveToken, saveUser } from '../services/api'; // ✅ added authAPI
+
+function showAlert(title, message) {
+    if (Platform.OS === 'web') {
+        window.alert(`${title}\n${message}`);
+    } else {
+        Alert.alert(title, message);
+    }
+}
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -21,7 +29,7 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('Error', 'Please fill in all fields');
+            showAlert('Error', 'Please fill in all fields');
             return;
         }
 
@@ -37,7 +45,7 @@ export default function LoginScreen() {
                 router.replace('/home'); // ✅ replace instead of push (can't go back to login)
             }
         } catch (error) {
-            Alert.alert('Login Failed', error.message);
+            showAlert('Login Failed', error.message);
         } finally {
             setLoading(false);
         }

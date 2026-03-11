@@ -5,7 +5,7 @@ import {
   TextInput, RefreshControl,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { itemAPI, requestAPI, getUser, clearSession } from "./services/api";
+import { itemAPI, requestAPI, getUser, clearSession } from "../services/api";
 
 // ── Edit Item Modal ───────────────────────────────────────────────────────────
 function EditItemModal({ item, visible, onClose, onSave }) {
