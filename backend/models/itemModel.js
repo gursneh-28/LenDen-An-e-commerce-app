@@ -13,10 +13,8 @@ async function createItem(data) {
   return result;
 }
 
-async function getAllItems() {
-  const collection = await getCollection();
-  // Newest first
-  return await collection.find().sort({ createdAt: -1 }).toArray();
+async function getAllItems(org) {
+  return await collection.find({ org: org }).sort({ createdAt: -1 }).toArray();
 }
 
 async function getItemsByEmail(email) {

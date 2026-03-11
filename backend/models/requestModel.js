@@ -13,10 +13,8 @@ async function createRequest(data) {
   return result;
 }
 
-async function getAllRequests() {
-  const collection = await getCollection();
-  // Newest first
-  return await collection.find().sort({ createdAt: -1 }).toArray();
+async function getAllRequests(org) {
+  return await collection.find({ org: org }).sort({ createdAt: -1 }).toArray();
 }
 
 async function getRequestsByEmail(email) {

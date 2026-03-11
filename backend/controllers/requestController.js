@@ -11,8 +11,9 @@ async function createRequest(req, res) {
     const result = await requestModel.createRequest({
       work,
       price: Number(price),
-      requestedBy: req.user.email,    // from JWT
-      requesterName: req.user.name,   // from JWT
+      requestedBy: req.user.email,    
+      requesterName: req.user.name,
+      org: req.user.org,   
     });
 
     res.status(201).json({
@@ -27,7 +28,7 @@ async function createRequest(req, res) {
 
 async function getRequests(req, res) {
   try {
-    const requests = await requestModel.getAllRequests();
+    const requests = await requestModel.getAllRequests(req.user.org);   // ⭐ pass org
     res.json({ success: true, data: requests });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
