@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { itemAPI } from "../services/api";
+import { itemAPI } from "../../services/api";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });

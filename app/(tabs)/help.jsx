@@ -3,7 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl,
 } from "react-native";
-import { requestAPI } from "../services/api";
+import { requestAPI } from "../../services/api";
 
 function timeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime();

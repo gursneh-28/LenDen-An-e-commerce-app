@@ -1,11 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import { Platform } from 'react-native';
 
 const API_BASE_URL = Platform.OS === 'web'
   ? "http://localhost:5000/api"
-  : "http://172.16.61.116:5000/api";
-
+  : "http://172.16.61.69:5000/api";
 
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
@@ -58,7 +56,13 @@ async function apiUpload(endpoint, formData) {
 }
 
 export const authAPI = {
-  signup: (data) => apiRequest("/auth/signup", "POST", data),
+  // Step 1 — validate domain & send OTP
+  sendOtp: (data) => apiRequest("/auth/send-otp", "POST", data),
+
+  // Step 2 — verify OTP and create account
+  verifyOtpAndSignup: (data) => apiRequest("/auth/verify-otp", "POST", data),
+
+  // Login
   login: (data) => apiRequest("/auth/login", "POST", data),
 };
 
@@ -77,4 +81,3 @@ export const requestAPI = {
   updateRequest: (id, data) => apiRequest(`/requests/${id}`, "PUT", data),
   deleteRequest: (id) => apiRequest(`/requests/${id}`, "DELETE"),
 };
-

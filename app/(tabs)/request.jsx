@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Button, StyleSheet, Alert } from "react-native";
-import { requestAPI } from "../services/api";
+import { requestAPI } from "../../services/api";
 
 export default function RequestScreen() {
 
