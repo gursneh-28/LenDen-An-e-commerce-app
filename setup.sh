@@ -6,7 +6,7 @@ npm install --legacy-peer-deps
 echo "Installing backend dependencies..."
 cd backend
 npm install --legacy-peer-deps
-npm install express cors dotenv bcrypt jsonwebtoken multer cloudinary --legacy-peer-deps
+npm install express cors dotenv bcrypt jsonwebtoken multer cloudinary nodemailer --legacy-peer-deps
 npx expo install @react-native-community/datetimepicker
 npm install expo-image-picker --legacy-peer-deps
 cd ..
