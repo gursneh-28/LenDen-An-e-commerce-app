@@ -2,6 +2,7 @@ echo "🚀 Setting up LenDen Project"
 
 echo "Installing root dependencies..."
 npm install --legacy-peer-deps
+npx expo install expo-image-manipulator
 
 echo "Installing backend dependencies..."
 cd backend

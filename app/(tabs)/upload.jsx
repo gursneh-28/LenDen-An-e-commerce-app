@@ -10,16 +10,20 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  FlatList,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { itemAPI } from "../../services/api";
 
+const MAX_IMAGES = 5;
+
 export default function Upload() {
   const router = useRouter();
   const [type, setType] = useState("sell");
-  const [image, setImage] = useState(null);
+  const [images, setImages] = useState([]); // array of { uri, ... }
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,24 +33,113 @@ export default function Upload() {
   const [pickerMode, setPickerMode] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
 
-  const pickImage = async () => {
+  // ── Image picking with crop ────────────────────────────────────────────────
+  const pickImages = async () => {
+    if (images.length >= MAX_IMAGES) {
+      return Alert.alert("Max images", `You can upload up to ${MAX_IMAGES} images.`);
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission required", "Camera roll access is needed.");
       return;
     }
+
+    const remaining = MAX_IMAGES - images.length;
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
-      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 1, // We'll compress after crop
     });
-    if (!result.canceled) setImage(result.assets[0]);
+
+    if (result.canceled) return;
+
+    // Crop & compress each selected image
+    const processed = await Promise.all(
+      result.assets.slice(0, remaining).map(async (asset) => {
+        try {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            asset.uri,
+            [{ resize: { width: 1080 } }], // resize to max 1080px wide
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+          );
+          return manipulated;
+        } catch {
+          return asset; // fallback to original if manipulation fails
+        }
+      })
+    );
+
+    setImages((prev) => [...prev, ...processed].slice(0, MAX_IMAGES));
   };
 
-  const openPicker = (mode) => {
-    setPickerMode(mode);
-    setShowPicker(true);
+  const pickWithCamera = async () => {
+    if (images.length >= MAX_IMAGES) {
+      return Alert.alert("Max images", `You can upload up to ${MAX_IMAGES} images.`);
+    }
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission required", "Camera access is needed.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true, // This enables the crop UI on camera
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (result.canceled) return;
+
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1080 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setImages((prev) => [...prev, manipulated].slice(0, MAX_IMAGES));
+    } catch {
+      setImages((prev) => [...prev, result.assets[0]].slice(0, MAX_IMAGES));
+    }
   };
+
+  const cropImage = async (index) => {
+    // Re-open the image with crop enabled
+    const asset = images[index];
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true, // crop UI
+      aspect: [4, 3],
+      quality: 1,
+    });
+    if (result.canceled) return;
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1080 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setImages((prev) => prev.map((img, i) => (i === index ? manipulated : img)));
+    } catch {
+      setImages((prev) => prev.map((img, i) => (i === index ? result.assets[0] : img)));
+    }
+  };
+
+  const removeImage = (index) => setImages((prev) => prev.filter((_, i) => i !== index));
+
+  const showImageOptions = () => {
+    Alert.alert("Add Photo", "Choose source", [
+      { text: "Camera", onPress: pickWithCamera },
+      { text: "Gallery", onPress: pickImages },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  // ── Date range helpers ─────────────────────────────────────────────────────
+  const openPicker = (mode) => { setPickerMode(mode); setShowPicker(true); };
 
   const onDateChange = (event, selectedDate) => {
     if (Platform.OS === "android") setShowPicker(false);
@@ -63,16 +156,14 @@ export default function Upload() {
     setCurrentRange({ start: null, end: null });
   };
 
-  const removeDateRange = (index) =>
-    setDateRanges((prev) => prev.filter((_, i) => i !== index));
+  const removeDateRange = (index) => setDateRanges((prev) => prev.filter((_, i) => i !== index));
 
   const formatDate = (d) =>
-    d
-      ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-      : "Select date";
+    d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "Select date";
 
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!image) return Alert.alert("Missing image", "Please select an image.");
+    if (images.length === 0) return Alert.alert("Missing image", "Please add at least one photo.");
     if (!description.trim()) return Alert.alert("Missing description", "Add a description.");
     if (!price.trim() || isNaN(Number(price)))
       return Alert.alert("Invalid price", "Enter a valid price.");
@@ -85,11 +176,16 @@ export default function Upload() {
       formData.append("type", type);
       formData.append("description", description);
       formData.append("price", price);
-      formData.append("image", {
-        uri: image.uri,
-        name: "upload.jpg",
-        type: "image/jpeg",
+
+      // Append all images
+      images.forEach((img, index) => {
+        formData.append("images", {
+          uri: img.uri,
+          name: `upload_${index}.jpg`,
+          type: "image/jpeg",
+        });
       });
+
       if (type === "rent") {
         formData.append(
           "availability",
@@ -107,7 +203,7 @@ export default function Upload() {
         Alert.alert("Success 🎉", "Item uploaded!", [
           { text: "OK", onPress: () => router.push("/home") },
         ]);
-        setImage(null);
+        setImages([]);
         setDescription("");
         setPrice("");
         setDateRanges([]);
@@ -122,6 +218,7 @@ export default function Upload() {
   return (
     <ScrollView style={s.screen} contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
 
+      {/* Sell / Rent Toggle */}
       <View style={s.toggle}>
         {["sell", "rent"].map((t) => (
           <TouchableOpacity
@@ -136,18 +233,43 @@ export default function Upload() {
         ))}
       </View>
 
-      <TouchableOpacity style={s.imagePicker} onPress={pickImage}>
-        {image ? (
-          <Image source={{ uri: image.uri }} style={s.imagePreview} />
-        ) : (
-          <View style={s.imagePlaceholder}>
-            <Text style={s.imagePlaceholderIcon}>📷</Text>
-            <Text style={s.imagePlaceholderText}>Tap to add photo</Text>
-          </View>
+      {/* Image Section */}
+      <Text style={s.label}>Photos ({images.length}/{MAX_IMAGES})</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.imagesRow}>
+        {/* Add button */}
+        {images.length < MAX_IMAGES && (
+          <TouchableOpacity style={s.addImageBtn} onPress={showImageOptions}>
+            <Text style={s.addImageIcon}>📷</Text>
+            <Text style={s.addImageText}>Add Photo</Text>
+          </TouchableOpacity>
         )}
-      </TouchableOpacity>
 
-      <Text style={s.label}>Description</Text>
+        {/* Image thumbnails */}
+        {images.map((img, index) => (
+          <View key={index} style={s.thumbWrap}>
+            <Image source={{ uri: img.uri }} style={s.thumb} />
+            {/* Primary badge */}
+            {index === 0 && (
+              <View style={s.primaryBadge}>
+                <Text style={s.primaryBadgeText}>Cover</Text>
+              </View>
+            )}
+            {/* Action buttons */}
+            <View style={s.thumbActions}>
+              <TouchableOpacity style={s.thumbActionBtn} onPress={() => cropImage(index)}>
+                <Text style={s.thumbActionIcon}>✂️</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.thumbActionBtn, s.thumbRemoveBtn]} onPress={() => removeImage(index)}>
+                <Text style={s.thumbActionIcon}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+      <Text style={s.imageHint}>First photo will be the cover. Tap ✂️ to crop.</Text>
+
+      {/* Description */}
+      <Text style={[s.label, { marginTop: 18 }]}>Description</Text>
       <TextInput
         style={[s.input, s.textArea]}
         placeholder="Describe the item…"
@@ -158,6 +280,7 @@ export default function Upload() {
         numberOfLines={3}
       />
 
+      {/* Price */}
       <Text style={s.label}>Price {type === "rent" ? "(per day / period)" : ""}</Text>
       <TextInput
         style={s.input}
@@ -168,6 +291,7 @@ export default function Upload() {
         keyboardType="decimal-pad"
       />
 
+      {/* Date ranges for rent */}
       {type === "rent" && (
         <View style={s.availabilitySection}>
           <Text style={s.label}>Availability Dates</Text>
@@ -205,11 +329,7 @@ export default function Upload() {
 
           {showPicker && (
             <DateTimePicker
-              value={
-                pickerMode === "start"
-                  ? currentRange.start || new Date()
-                  : currentRange.end || new Date()
-              }
+              value={pickerMode === "start" ? currentRange.start || new Date() : currentRange.end || new Date()}
               mode="date"
               display={Platform.OS === "ios" ? "inline" : "default"}
               minimumDate={pickerMode === "end" ? currentRange.start || new Date() : new Date()}
@@ -224,12 +344,9 @@ export default function Upload() {
         </View>
       )}
 
+      {/* Submit */}
       <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={s.submitText}>Upload Item</Text>
-        )}
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.submitText}>Upload Item</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
@@ -238,34 +355,77 @@ export default function Upload() {
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f8f7f4" },
   container: { padding: 24, paddingBottom: 60 },
-  heading: { fontSize: 28, fontWeight: "700", color: "#1a1a1a", marginBottom: 24, letterSpacing: -0.5 },
+
   toggle: { flexDirection: "row", backgroundColor: "#e9e9e7", borderRadius: 12, padding: 4, marginBottom: 24 },
   toggleBtn: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: "center" },
   toggleActive: { backgroundColor: "#1a1a1a" },
   toggleText: { fontWeight: "600", color: "#6b7280", fontSize: 15 },
   toggleTextActive: { color: "#fff" },
-  imagePicker: { height: 200, borderRadius: 16, overflow: "hidden", marginBottom: 20, backgroundColor: "#e9e9e7" },
-  imagePreview: { width: "100%", height: "100%", resizeMode: "cover" },
-  imagePlaceholder: { flex: 1, justifyContent: "center", alignItems: "center", gap: 8 },
-  imagePlaceholderIcon: { fontSize: 36 },
-  imagePlaceholderText: { color: "#9ca3af", fontSize: 14, fontWeight: "500" },
-  label: { fontSize: 13, fontWeight: "600", color: "#6b7280", marginBottom: 6, marginTop: 4, textTransform: "uppercase", letterSpacing: 0.5 },
-  input: { backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13, fontSize: 16, color: "#1a1a1a", marginBottom: 16, borderWidth: 1, borderColor: "#e5e5e5" },
+
+  label: { fontSize: 13, fontWeight: "600", color: "#6b7280", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
+
+  // Images
+  imagesRow: { flexDirection: "row", marginBottom: 6 },
+  addImageBtn: {
+    width: 100, height: 110, borderRadius: 14,
+    backgroundColor: "#e9e9e7", justifyContent: "center",
+    alignItems: "center", marginRight: 10, gap: 6,
+    borderWidth: 1.5, borderColor: "#d1d5db", borderStyle: "dashed",
+  },
+  addImageIcon: { fontSize: 26 },
+  addImageText: { fontSize: 11, fontWeight: "600", color: "#6b7280" },
+  thumbWrap: { position: "relative", marginRight: 10 },
+  thumb: { width: 100, height: 110, borderRadius: 14, resizeMode: "cover" },
+  primaryBadge: {
+    position: "absolute", top: 6, left: 6,
+    backgroundColor: "#1a1a1a", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8,
+  },
+  primaryBadgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  thumbActions: {
+    position: "absolute", top: 6, right: 6,
+    flexDirection: "column", gap: 4,
+  },
+  thumbActionBtn: {
+    backgroundColor: "rgba(255,255,255,0.9)", width: 26, height: 26,
+    borderRadius: 13, justifyContent: "center", alignItems: "center",
+  },
+  thumbRemoveBtn: { backgroundColor: "rgba(239,68,68,0.9)" },
+  thumbActionIcon: { fontSize: 11 },
+  imageHint: { fontSize: 11, color: "#9ca3af", marginBottom: 4 },
+
+  input: {
+    backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 16,
+    paddingVertical: 13, fontSize: 16, color: "#1a1a1a", marginBottom: 16,
+    borderWidth: 1, borderColor: "#e5e5e5",
+  },
   textArea: { height: 90, textAlignVertical: "top", paddingTop: 13 },
+
   availabilitySection: { marginBottom: 16 },
-  rangeChip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 8, borderWidth: 1, borderColor: "#e5e5e5" },
+  rangeChip: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "#fff", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    marginBottom: 8, borderWidth: 1, borderColor: "#e5e5e5",
+  },
   rangeChipText: { fontSize: 14, color: "#1a1a1a", fontWeight: "500" },
   removeBtn: { color: "#ef4444", fontSize: 16, paddingLeft: 8 },
   rangePicker: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
-  dateBtn: { flex: 1, backgroundColor: "#fff", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: "#e5e5e5" },
+  dateBtn: {
+    flex: 1, backgroundColor: "#fff", borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: "#e5e5e5",
+  },
   dateBtnLabel: { fontSize: 11, color: "#9ca3af", fontWeight: "600", textTransform: "uppercase", marginBottom: 2 },
   dateBtnValue: { fontSize: 13, color: "#9ca3af" },
   dateBtnValueSet: { color: "#1a1a1a", fontWeight: "500" },
   arrow: { fontSize: 18, color: "#9ca3af" },
-  addRangeBtn: { borderWidth: 1.5, borderColor: "#1a1a1a", borderStyle: "dashed", borderRadius: 12, paddingVertical: 12, alignItems: "center", marginBottom: 8 },
+  addRangeBtn: {
+    borderWidth: 1.5, borderColor: "#1a1a1a", borderStyle: "dashed",
+    borderRadius: 12, paddingVertical: 12, alignItems: "center", marginBottom: 8,
+  },
   addRangeBtnText: { fontWeight: "600", color: "#1a1a1a", fontSize: 14 },
   doneBtn: { alignSelf: "flex-end", paddingHorizontal: 16, paddingVertical: 8, marginTop: 8 },
   doneBtnText: { color: "#2563eb", fontWeight: "600", fontSize: 15 },
+
   submitBtn: { backgroundColor: "#1a1a1a", borderRadius: 14, paddingVertical: 16, alignItems: "center", marginTop: 8 },
   submitText: { color: "#fff", fontSize: 16, fontWeight: "700", letterSpacing: 0.3 },
 });

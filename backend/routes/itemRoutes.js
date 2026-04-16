@@ -6,7 +6,8 @@ const verifyToken = require("../middleware/authMiddleware");
 
 const upload = multer({ dest: "uploads/" });
 
-router.post("/upload", verifyToken, upload.single("image"), itemController.uploadItem);
+// Use upload.array("images", 5) to accept up to 5 images under the field name "images"
+router.post("/upload", verifyToken, upload.array("images", 5), itemController.uploadItem);
 router.get("/all",    verifyToken, itemController.getItems);
 router.get("/mine",   verifyToken, itemController.getMyItems);
 router.put("/:id",    verifyToken, itemController.updateItem);

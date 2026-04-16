@@ -6,23 +6,34 @@ async function uploadItem(req, res) {
   try {
     const { type, description, price, availability } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "Image required" });
+    // Support both single file (req.file) and multiple files (req.files)
+    const files = req.files || (req.file ? [req.file] : []);
+
+    if (files.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one image is required" });
     }
 
-    const uploadResult = await cloudinary.uploader.upload(req.file.path);
+    // Upload all images to Cloudinary in parallel
+    const uploadPromises = files.map((file) =>
+      cloudinary.uploader.upload(file.path).then((result) => {
+        fs.unlink(file.path, () => {}); // delete temp file
+        return result.secure_url;
+      })
+    );
 
-    fs.unlink(req.file.path, () => {});
+    const imageUrls = await Promise.all(uploadPromises);
 
     const itemData = {
       type,
       description,
       price: Number(price),
-      image: uploadResult.secure_url,
-      availability: type === "rent" ? JSON.parse(availability) : [],
-      uploadedBy: req.user.email,     
-      uploaderName: req.user.name, 
-      org: req.user.org,  
+      images: imageUrls,          // array of image URLs
+      image: imageUrls[0],        // keep for backward compatibility
+      availability: type === "rent" ? JSON.parse(availability || "[]") : [],
+      uploadedBy: req.user.email,
+      uploaderName: req.user.name,
+      uploaderPhone: req.user.phone || null,
+      org: req.user.org,
     };
 
     const result = await itemModel.createItem(itemData);
@@ -33,13 +44,16 @@ async function uploadItem(req, res) {
       itemId: result.insertedId,
     });
   } catch (error) {
+    // Clean up any temp files on error
+    const files = req.files || (req.file ? [req.file] : []);
+    files.forEach((f) => fs.unlink(f.path, () => {}));
     res.status(500).json({ success: false, message: error.message });
   }
 }
 
 async function getItems(req, res) {
   try {
-    const items = await itemModel.getAllItems(req.user.org);   
+    const items = await itemModel.getAllItems(req.user.org);
     res.json({ success: true, data: items });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -63,7 +77,6 @@ async function updateItem(req, res) {
     const item = await itemModel.getItemById(id);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
 
-    // Only the owner can edit
     if (item.uploadedBy !== req.user.email) {
       return res.status(403).json({ success: false, message: "Not authorised" });
     }
