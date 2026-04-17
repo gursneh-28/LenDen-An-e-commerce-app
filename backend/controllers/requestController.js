@@ -2,7 +2,7 @@ const requestModel = require("../models/requestModel");
 
 async function createRequest(req, res) {
   try {
-    const { work, price } = req.body;
+    const { work, price, category } = req.body;
 
     if (!work || !price) {
       return res.status(400).json({ success: false, message: "Work and price are required" });
@@ -11,6 +11,7 @@ async function createRequest(req, res) {
     const result = await requestModel.createRequest({
       work,
       price: Number(price),
+      category: category || "other",
       requestedBy: req.user.email,    
       requesterName: req.user.name,
       org: req.user.org,   
@@ -47,7 +48,7 @@ async function getMyRequests(req, res) {
 async function updateRequest(req, res) {
   try {
     const { id } = req.params;
-    const { work, price } = req.body;
+    const { work, price, category } = req.body;
 
     const request = await requestModel.getRequestById(id);
     if (!request) return res.status(404).json({ success: false, message: "Request not found" });
@@ -56,7 +57,10 @@ async function updateRequest(req, res) {
       return res.status(403).json({ success: false, message: "Not authorised" });
     }
 
-    await requestModel.updateRequest(id, { work, price: Number(price) });
+    const updateFields = { work, price: Number(price) };
+    if (category) updateFields.category = category;
+
+    await requestModel.updateRequest(id, updateFields);
     res.json({ success: true, message: "Request updated" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

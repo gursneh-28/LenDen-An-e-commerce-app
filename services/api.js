@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 const API_BASE_URL = Platform.OS === 'web'
   ? "http://localhost:5000/api"
-  : "http://172.16.59.120:5000/api";
+  : "http://172.16.61.155:5000/api";
 
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
@@ -80,4 +80,9 @@ export const requestAPI = {
   getMyRequests: () => apiRequest("/requests/mine"),
   updateRequest: (id, data) => apiRequest(`/requests/${id}`, "PUT", data),
   deleteRequest: (id) => apiRequest(`/requests/${id}`, "DELETE"),
+};
+
+export const userAPI = {
+  getWishlist: () => apiRequest("/user/wishlist"),
+  toggleWishlist: (itemId) => apiRequest("/user/wishlist/toggle", "POST", { itemId }),
 };
