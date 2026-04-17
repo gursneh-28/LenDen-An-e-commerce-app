@@ -2,9 +2,10 @@ const cloudinary = require("../config/cloudinary");
 const itemModel = require("../models/itemModel");
 const fs = require("fs");
 
+// SINGLE uploadItem function (with category support)
 async function uploadItem(req, res) {
   try {
-    const { type, description, price, availability } = req.body;
+    const { type, description, price, availability, category } = req.body;
 
     // Support both single file (req.file) and multiple files (req.files)
     const files = req.files || (req.file ? [req.file] : []);
@@ -29,6 +30,7 @@ async function uploadItem(req, res) {
       price: Number(price),
       images: imageUrls,          // array of image URLs
       image: imageUrls[0],        // keep for backward compatibility
+      category: category || "other",  // ← ADD category here with default
       availability: type === "rent" ? JSON.parse(availability || "[]") : [],
       uploadedBy: req.user.email,
       uploaderName: req.user.name,
@@ -69,10 +71,11 @@ async function getMyItems(req, res) {
   }
 }
 
+// ADD the missing updateItem function
 async function updateItem(req, res) {
   try {
     const { id } = req.params;
-    const { description, price } = req.body;
+    const { description, price, category } = req.body;
 
     const item = await itemModel.getItemById(id);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
@@ -81,7 +84,14 @@ async function updateItem(req, res) {
       return res.status(403).json({ success: false, message: "Not authorised" });
     }
 
-    await itemModel.updateItem(id, { description, price: Number(price) });
+    const updateFields = {
+      description,
+      price: Number(price),
+    };
+    
+    if (category) updateFields.category = category;
+
+    await itemModel.updateItem(id, updateFields);
     res.json({ success: true, message: "Item updated" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -106,4 +116,5 @@ async function deleteItem(req, res) {
   }
 }
 
+// Export all functions (only ONE uploadItem)
 module.exports = { uploadItem, getItems, getMyItems, updateItem, deleteItem };

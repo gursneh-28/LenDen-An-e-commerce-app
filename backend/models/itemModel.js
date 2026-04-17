@@ -7,10 +7,17 @@ async function getCollection() {
   return mongoDB.getCollection(collectionName);
 }
 
-async function createItem(data) {
+async function createItem(itemData) {
   const collection = await getCollection();
-  const result = await collection.insertOne({ ...data, createdAt: new Date() });
-  return result;
+  
+  const item = {
+    ...itemData,
+    category: itemData.category || "other",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  
+  return await collection.insertOne(item);
 }
 
 async function getAllItems(org) {
@@ -41,6 +48,22 @@ async function deleteItem(id) {
   return await collection.deleteOne({ _id: new ObjectId(id) });
 }
 
+async function getItemsByCategory(org, category) {
+  const collection = await getCollection();
+  return await collection.find({ org: org, category: category }).sort({ createdAt: -1 }).toArray();
+}
+
+async function searchItems(org, searchTerm) {
+  const collection = await getCollection();
+  return await collection.find({
+    org: org,
+    $or: [
+      { description: { $regex: searchTerm, $options: "i" } },
+      { uploaderName: { $regex: searchTerm, $options: "i" } }
+    ]
+  }).sort({ createdAt: -1 }).toArray();
+}
+
 module.exports = {
   createItem,
   getAllItems,
@@ -48,4 +71,6 @@ module.exports = {
   getItemById,
   updateItem,
   deleteItem,
+  getItemsByCategory,
+  searchItems,
 };
