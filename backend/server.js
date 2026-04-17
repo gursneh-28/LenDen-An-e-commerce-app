@@ -22,7 +22,9 @@ app.use(express.urlencoded({ extended: true }));
 const authRoutes = require('./routes/authRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const requestRoutes = require("./routes/requestRoutes");
+const orderRoutes = require('./routes/orderRoutes');
 
+app.use("/api/orders", orderRoutes);
 app.use("/api/items", itemRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/requests", requestRoutes);
