@@ -58,29 +58,23 @@ export default function Upload() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
+      allowsEditing: true,
+      aspect: [4, 3],
       quality: 1,
     });
 
     if (result.canceled) return;
 
-    const processed = await Promise.all(
-      result.assets.slice(0, remaining).map(async (asset) => {
-        try {
-          const manipulated = await ImageManipulator.manipulateAsync(
-            asset.uri,
-            [{ resize: { width: 1080 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-          );
-          return manipulated;
-        } catch {
-          return asset;
-        }
-      })
-    );
-
-    setImages((prev) => [...prev, ...processed].slice(0, MAX_IMAGES));
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        result.assets[0].uri,
+        [{ resize: { width: 1080 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      setImages((prev) => [...prev, manipulated].slice(0, MAX_IMAGES));
+    } catch {
+      setImages((prev) => [...prev, result.assets[0]].slice(0, MAX_IMAGES));
+    }
   };
 
   const pickWithCamera = async () => {
@@ -267,9 +261,6 @@ export default function Upload() {
               </View>
             )}
             <View style={s.thumbActions}>
-              <TouchableOpacity style={s.thumbActionBtn} onPress={() => cropImage(index)}>
-                <Text style={s.thumbActionIcon}>✂️</Text>
-              </TouchableOpacity>
               <TouchableOpacity
                 style={[s.thumbActionBtn, s.thumbRemoveBtn]}
                 onPress={() => removeImage(index)}
@@ -280,7 +271,7 @@ export default function Upload() {
           </View>
         ))}
       </ScrollView>
-      <Text style={s.imageHint}>First photo will be the cover. Tap ✂️ to crop.</Text>
+      <Text style={s.imageHint}>First photo will be the cover. Pick images individually to crop.</Text>
 
       {/* Description */}
       <Text style={[s.label, { marginTop: 18 }]}>Description</Text>

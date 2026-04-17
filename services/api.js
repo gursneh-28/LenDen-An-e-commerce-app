@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 const API_BASE_URL = Platform.OS === 'web'
   ? "http://localhost:5000/api"
   : "http://192.168.1.11:5000/api";
-
+  
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
 }
@@ -83,13 +83,18 @@ export const requestAPI = {
 };
 
 export const orderAPI = {
-  createOrder:      (d)          => apiRequest("/orders/create",       "POST",  d),
-  getMyOrders:      ()           => apiRequest("/orders/mine"),
-  getSellingOrders: ()           => apiRequest("/orders/selling"),
-  updateStatus:     (id, status) => apiRequest(`/orders/${id}/status`, "PATCH", { status }),
+  createOrder: (d) => apiRequest("/orders/create", "POST", d),
+  getMyOrders: () => apiRequest("/orders/mine"),
+  getSellingOrders: () => apiRequest("/orders/selling"),
+  updateStatus: (id, status) => apiRequest(`/orders/${id}/status`, "PATCH", { status }),
 };
 
 export const paymentAPI = {
   createRazorpayOrder: (d) => apiRequest("/payments/create-order", "POST", d),
-  verifyPayment:       (d) => apiRequest("/payments/verify",        "POST", d),
+  verifyPayment: (d) => apiRequest("/payments/verify", "POST", d),
+};
+
+export const userAPI = {
+  getWishlist: () => apiRequest("/user/wishlist"),
+  toggleWishlist: (itemId) => apiRequest("/user/wishlist/toggle", "POST", { itemId }),
 };

@@ -23,11 +23,13 @@ const authRoutes = require('./routes/authRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const requestRoutes = require("./routes/requestRoutes");
 const orderRoutes = require('./routes/orderRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 app.use("/api/orders", orderRoutes);
 app.use("/api/items", itemRoutes);
 app.use('/api/auth', authRoutes);
 app.use("/api/requests", requestRoutes);
+app.use('/api/user', userRoutes);
 
 async function startServer() {
     try {

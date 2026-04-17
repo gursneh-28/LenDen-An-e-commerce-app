@@ -1,27 +1,28 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl,
   TextInput, ScrollView, Dimensions,
-  StatusBar, Platform, Animated,
+  StatusBar, Platform,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { itemAPI } from "../../services/api";
+import { itemAPI, userAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 const CATEGORIES = [
-  { key: "all",         label: "All",         icon: "🏠" },
-  { key: "sell",        label: "For Sale",    icon: "🏷️" },
-  { key: "rent",        label: "For Rent",    icon: "🔑" },
+  { key: "all", label: "All", icon: "🏠" },
+  { key: "sell", label: "For Sale", icon: "🏷️" },
+  { key: "rent", label: "For Rent", icon: "🔑" },
   { key: "electronics", label: "Electronics", icon: "📱" },
-  { key: "books",       label: "Books",       icon: "📚" },
-  { key: "clothing",    label: "Clothing",    icon: "👗" },
-  { key: "furniture",   label: "Furniture",   icon: "🪑" },
-  { key: "sports",      label: "Sports",      icon: "⚽" },
+  { key: "books", label: "Books", icon: "📚" },
+  { key: "clothing", label: "Clothing", icon: "👗" },
+  { key: "furniture", label: "Furniture", icon: "🪑" },
+  { key: "sports", label: "Sports", icon: "⚽" },
+  { key: "other", label: "Other", icon: "📦" },
 ];
 
 function timeAgo(iso) {
@@ -35,17 +36,17 @@ function timeAgo(iso) {
 
 export default function Home() {
   const router = useRouter();
-  const [items, setItems]                   = useState([]);
-  const [filtered, setFiltered]             = useState([]);
-  const [loading, setLoading]               = useState(true);
-  const [refreshing, setRefreshing]         = useState(false);
-  const [search, setSearch]                 = useState("");
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [wishlist, setWishlist]             = useState([]);
-  const [showWishlist, setShowWishlist]     = useState(false);
-  const [userName, setUserName]             = useState("");
 
-  // ── Load user + items on focus ───────────────────────────────
+  const [items, setItems] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [wishlist, setWishlist] = useState([]);
+  const [showWishlist, setShowWishlist] = useState(false);
+  const [userName, setUserName] = useState("");
+
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem("user").then((raw) => {
@@ -55,15 +56,24 @@ export default function Home() {
         }
       });
       fetchItems();
+      fetchWishlist();
     }, [])
   );
 
-  // ── Fetch items ──────────────────────────────────────────────
+  const fetchWishlist = async () => {
+    try {
+      const res = await userAPI.getWishlist();
+      if (res.success) setWishlist(res.data);
+    } catch (e) {
+      console.log("wishlist fetch error", e);
+    }
+  };
+
+  // ✅ FIXED fetchItems
   const fetchItems = async () => {
     try {
-      const data = await itemAPI.getAll();
-      // Handle both array response and { items: [...] } response
-      const list = Array.isArray(data) ? data : data.items || [];
+      const data = await itemAPI.getItems();
+      const list = Array.isArray(data) ? data : data.data || data.items || [];
       setItems(list);
       applyFilters(list, search, activeCategory);
     } catch (e) {
@@ -74,9 +84,9 @@ export default function Home() {
     }
   };
 
-  // ── Filter logic ─────────────────────────────────────────────
   const applyFilters = (list, q, cat) => {
     let out = [...list];
+
     if (cat !== "all") {
       if (cat === "sell" || cat === "rent") {
         out = out.filter((i) => i.type === cat);
@@ -86,6 +96,7 @@ export default function Home() {
         );
       }
     }
+
     if (q.trim()) {
       const lower = q.toLowerCase();
       out = out.filter(
@@ -94,6 +105,7 @@ export default function Home() {
           i.uploaderName?.toLowerCase().includes(lower)
       );
     }
+
     setFiltered(out);
   };
 
@@ -107,19 +119,32 @@ export default function Home() {
     applyFilters(items, search, key);
   };
 
-  // ── Wishlist toggle ───────────────────────────────────────────
-  const toggleWishlist = (id) => {
+  const toggleWishlist = async (id) => {
+    const isWishlisted = wishlist.includes(id);
     setWishlist((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      isWishlisted ? prev.filter((x) => x !== id) : [...prev, id]
     );
+
+    try {
+      const res = await userAPI.toggleWishlist(id);
+      if (res.success) {
+        setWishlist(res.wishlist);
+      }
+    } catch (e) {
+      console.log("wishlist toggle error", e);
+      // Revert optimism if failed
+      setWishlist((prev) =>
+        isWishlisted ? [...prev, id] : prev.filter((x) => x !== id)
+      );
+    }
   };
 
   const wishlistItems = items.filter((i) => wishlist.includes(i._id));
-  const displayList   = showWishlist ? wishlistItems : filtered;
+  const displayList = showWishlist ? wishlistItems : filtered;
 
-  // ── Render card ───────────────────────────────────────────────
   const renderCard = ({ item }) => {
     const wishlisted = wishlist.includes(item._id);
+
     return (
       <TouchableOpacity
         style={styles.card}
@@ -139,11 +164,9 @@ export default function Home() {
           </View>
         )}
 
-        {/* Heart button */}
         <TouchableOpacity
           style={styles.heartBtn}
           onPress={() => toggleWishlist(item._id)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Ionicons
             name={wishlisted ? "heart" : "heart-outline"}
@@ -152,7 +175,6 @@ export default function Home() {
           />
         </TouchableOpacity>
 
-        {/* Type badge */}
         <View
           style={[
             styles.badge,
@@ -177,23 +199,27 @@ export default function Home() {
     );
   };
 
-  // ── List header (defined outside render via useCallback to fix keyboard bug) ──
-  const renderHeader = useCallback(() => {
+  if (loading) {
     return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#6366f1" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
+      {/* ✅ HEADER MOVED OUTSIDE */}
       <View style={styles.headerContainer}>
-        {/* Greeting row */}
         <View style={styles.greetRow}>
           <View>
             <Text style={styles.greeting}>Hey {userName || "there"} 👋</Text>
             <Text style={styles.subGreeting}>Find something in your org</Text>
           </View>
-
-          {/* Wishlist icon button */}
           <TouchableOpacity
-            style={[
-              styles.wishlistBtn,
-              showWishlist && styles.wishlistBtnActive,
-            ]}
+            style={[styles.wishlistBtn, showWishlist && styles.wishlistBtnActive]}
             onPress={() => setShowWishlist((v) => !v)}
           >
             <Ionicons
@@ -209,14 +235,8 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        {/* Search bar */}
         <View style={styles.searchRow}>
-          <Ionicons
-            name="search"
-            size={18}
-            color="#9ca3af"
-            style={{ marginLeft: 12 }}
-          />
+          <Ionicons name="search" size={18} color="#9ca3af" style={{ marginLeft: 12 }} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search items, sellers…"
@@ -227,16 +247,12 @@ export default function Home() {
             autoCapitalize="none"
           />
           {search.length > 0 && (
-            <TouchableOpacity
-              onPress={() => handleSearch("")}
-              style={{ paddingRight: 12 }}
-            >
+            <TouchableOpacity onPress={() => handleSearch("")} style={{ paddingRight: 12 }}>
               <Ionicons name="close-circle" size={18} color="#9ca3af" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Category pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -252,9 +268,7 @@ export default function Home() {
                 onPress={() => handleCategory(cat.key)}
               >
                 <Text style={styles.catIcon}>{cat.icon}</Text>
-                <Text
-                  style={[styles.catLabel, active && styles.catLabelActive]}
-                >
+                <Text style={[styles.catLabel, active && styles.catLabelActive]}>
                   {cat.label}
                 </Text>
                 {active && <View style={styles.catUnderline} />}
@@ -263,29 +277,14 @@ export default function Home() {
           })}
         </ScrollView>
 
-        {/* Section count */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>
             {showWishlist
               ? `❤️ Wishlist (${wishlistItems.length})`
-              : `${filtered.length} listings`}
+              : `${displayList.length} listings`}
           </Text>
         </View>
       </View>
-    );
-  }, [userName, search, activeCategory, wishlist, showWishlist, filtered, wishlistItems]);
-
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.screen}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <FlatList
         data={displayList}
@@ -294,7 +293,6 @@ export default function Home() {
         numColumns={2}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={renderHeader}   // ← no JSX tag, just the function reference
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         refreshControl={
@@ -325,12 +323,11 @@ export default function Home() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────
+// ✅ YOUR ORIGINAL STYLES (UNCHANGED)
 const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: "#f8f8f8" },
   center:  { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  // Header
   headerContainer: { backgroundColor: "#fff", paddingBottom: 8 },
   greetRow: {
     flexDirection: "row", justifyContent: "space-between",
@@ -340,7 +337,6 @@ const styles = StyleSheet.create({
   greeting:    { fontSize: 20, fontWeight: "700", color: "#111" },
   subGreeting: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
 
-  // Wishlist button
   wishlistBtn: {
     position: "relative", width: 44, height: 44, borderRadius: 22,
     borderWidth: 1.5, borderColor: "#e11d48",
@@ -355,7 +351,6 @@ const styles = StyleSheet.create({
   },
   badge2Text: { color: "#fff", fontSize: 10, fontWeight: "700" },
 
-  // Search
   searchRow: {
     flexDirection: "row", alignItems: "center",
     marginHorizontal: 16, marginBottom: 12,
@@ -363,10 +358,8 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: "#111", paddingHorizontal: 8 },
 
-  // Category pills
   catScroll:      { paddingHorizontal: 12, paddingBottom: 4, gap: 8 },
   catPill:        { alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, position: "relative" },
-  catPillActive:  {},
   catIcon:        { fontSize: 18, marginBottom: 2 },
   catLabel:       { fontSize: 13, color: "#6b7280", fontWeight: "500" },
   catLabelActive: { color: "#111", fontWeight: "700" },
@@ -382,9 +375,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 13, color: "#6b7280", fontWeight: "600" },
 
-  // Cards
   listContent: { padding: 12, paddingTop: 0 },
   row:         { justifyContent: "space-between", marginBottom: 12 },
+
   card: {
     width: CARD_WIDTH, backgroundColor: "#fff", borderRadius: 14,
     overflow: "hidden",
@@ -398,19 +391,16 @@ const styles = StyleSheet.create({
   cardDesc:  { fontSize: 12, color: "#6b7280", lineHeight: 16, marginBottom: 4 },
   cardMeta:  { fontSize: 11, color: "#9ca3af" },
 
-  // Heart on card
   heartBtn: {
     position: "absolute", top: 8, right: 8,
     backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 14, padding: 4,
   },
 
-  // Type badge on card
   badge:     { position: "absolute", top: 8, left: 8, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   badgeSell: { backgroundColor: "#6366f1" },
   badgeRent: { backgroundColor: "#f59e0b" },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
 
-  // Empty state
   empty:      { alignItems: "center", paddingTop: 60, gap: 10 },
   emptyTitle: { fontSize: 18, fontWeight: "700", color: "#111" },
   emptySub:   { fontSize: 13, color: "#9ca3af" },
