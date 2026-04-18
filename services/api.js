@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 
 const API_BASE_URL = Platform.OS === 'web'
   ? "http://localhost:5000/api"
-  : "http://192.168.1.11:5000/api";
+  : "http://172.16.61.155:5000/api";
   
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);

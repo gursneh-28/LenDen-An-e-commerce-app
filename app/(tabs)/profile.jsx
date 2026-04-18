@@ -1,24 +1,28 @@
 import React, { useState, useCallback } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, Image,
+  View, Text, ScrollView, FlatList, TouchableOpacity, Image,
   StyleSheet, ActivityIndicator, Alert, Modal,
-  TextInput, RefreshControl, Platform,
+  TextInput, RefreshControl, Platform, Dimensions,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import { itemAPI, requestAPI, orderAPI, getUser, clearSession } from "../../services/api";
+import { Ionicons } from "@expo/vector-icons";
+import { itemAPI, requestAPI, orderAPI, userAPI, getUser, clearSession } from "../../services/api";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_W = (SCREEN_WIDTH - 48) / 2;
 
 const formatDate = (iso) =>
   iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
 
 const ORDER_STATUS = {
-  pending:   { bg: "#fef9ee", text: "#b45309", label: "Pending" },
+  pending:   { bg: "#fef9ee", text: "#b45309", label: "Pending"   },
   confirmed: { bg: "#eff6ff", text: "#1d4ed8", label: "Confirmed" },
   completed: { bg: "#f0fdf4", text: "#15803d", label: "Completed" },
   cancelled: { bg: "#fef2f2", text: "#b91c1c", label: "Cancelled" },
 };
 
-// ── Reusable small components ─────────────────────────────────────────────────
+// ─── Shared mini-components ────────────────────────────────────────────────────
 function StatusPill({ status }) {
   const st = ORDER_STATUS[status] || ORDER_STATUS.pending;
   return (
@@ -75,18 +79,119 @@ function EmptyState({ icon, text, btnText, onPress }) {
   );
 }
 
-// ── Edit Item Modal ───────────────────────────────────────────────────────────
+// ─── Wishlist Bottom Sheet Modal ───────────────────────────────────────────────
+// Shows all wishlisted items as a 2-col grid; tapping the heart removes from wishlist
+function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, router }) {
+  const wishlisted = allItems.filter((i) => wishlistIds.includes(i._id));
+
+  const renderCard = ({ item }) => (
+    <TouchableOpacity
+      style={wl.card}
+      activeOpacity={0.88}
+      onPress={() => {
+        onClose();
+        router.push({ pathname: "/item-detail", params: { item: JSON.stringify(item) } });
+      }}
+    >
+      {item.image ? (
+        <Image source={{ uri: item.image }} style={wl.cardImg} />
+      ) : (
+        <View style={[wl.cardImg, wl.noImg]}>
+          <Text style={{ fontSize: 28 }}>📦</Text>
+        </View>
+      )}
+
+      {/* Heart — tap to remove from wishlist */}
+      <TouchableOpacity
+        style={wl.heartBtn}
+        onPress={() => onToggle(item._id)}
+        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+      >
+        <Ionicons name="heart" size={15} color="#fff" />
+      </TouchableOpacity>
+
+      <View style={[wl.typeBadge, item.type === "rent" ? wl.badgeRent : wl.badgeSell]}>
+        <Text style={wl.typeBadgeText}>{item.type === "rent" ? "Rent" : "Sale"}</Text>
+      </View>
+
+      <View style={wl.cardBody}>
+        <Text style={wl.price}>₹{item.price}</Text>
+        <Text style={wl.desc} numberOfLines={2}>{item.description}</Text>
+        <Text style={wl.meta}>{item.uploaderName}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      {/* Dim backdrop */}
+      <TouchableOpacity style={wl.backdrop} activeOpacity={1} onPress={onClose} />
+
+      {/* Sheet */}
+      <View style={wl.sheet}>
+        {/* Handle bar */}
+        <View style={wl.handle} />
+
+        {/* Header */}
+        <View style={wl.sheetHeader}>
+          <View style={wl.sheetTitleRow}>
+            <Ionicons name="heart" size={20} color="#e11d48" style={{ marginRight: 8 }} />
+            <Text style={wl.sheetTitle}>Wishlist</Text>
+            <View style={wl.countBadge}>
+              <Text style={wl.countBadgeText}>{wishlisted.length}</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={wl.closeBtn} onPress={onClose}>
+            <Ionicons name="close" size={20} color="#6b7280" />
+          </TouchableOpacity>
+        </View>
+
+        {wishlisted.length === 0 ? (
+          <View style={wl.empty}>
+            <Ionicons name="heart-outline" size={56} color="#fda4af" />
+            <Text style={wl.emptyTitle}>Nothing saved yet</Text>
+            <Text style={wl.emptySub}>
+              Tap ♡ on any listing in the home feed to save it here
+            </Text>
+            <TouchableOpacity style={wl.browseBtn} onPress={onClose}>
+              <Text style={wl.browseBtnText}>Browse listings</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={wishlisted}
+            keyExtractor={(item) => item._id}
+            renderItem={renderCard}
+            numColumns={2}
+            columnWrapperStyle={wl.row}
+            contentContainerStyle={wl.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Edit Item Modal ───────────────────────────────────────────────────────────
 function EditItemModal({ item, visible, onClose, onSave }) {
   const [description, setDescription] = useState("");
-  const [price, setPrice]             = useState("");
-  const [saving, setSaving]           = useState(false);
+  const [price,       setPrice]       = useState("");
+  const [saving,      setSaving]      = useState(false);
 
   React.useEffect(() => {
     if (item) { setDescription(item.description || ""); setPrice(String(item.price || "")); }
   }, [item]);
 
   const save = async () => {
-    if (!description.trim() || !price.trim()) return Alert.alert("Missing fields", "Fill in both fields.");
+    if (!description.trim() || !price.trim())
+      return Alert.alert("Missing fields", "Fill in both fields.");
     try {
       setSaving(true);
       await itemAPI.updateItem(item._id, { description, price: Number(price) });
@@ -107,7 +212,9 @@ function EditItemModal({ item, visible, onClose, onSave }) {
           <TextInput style={m.input} value={price} onChangeText={setPrice}
             keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#9ca3af" />
           <View style={m.btnRow}>
-            <TouchableOpacity style={m.cancelBtn} onPress={onClose}><Text style={m.cancelText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
+              <Text style={m.cancelText}>Cancel</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={m.saveBtn} onPress={save} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.saveText}>Save</Text>}
             </TouchableOpacity>
@@ -118,10 +225,10 @@ function EditItemModal({ item, visible, onClose, onSave }) {
   );
 }
 
-// ── Edit Request Modal ────────────────────────────────────────────────────────
+// ─── Edit Request Modal ────────────────────────────────────────────────────────
 function EditRequestModal({ item, visible, onClose, onSave }) {
-  const [work, setWork]   = useState("");
-  const [price, setPrice] = useState("");
+  const [work,   setWork]   = useState("");
+  const [price,  setPrice]  = useState("");
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
@@ -129,7 +236,8 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
   }, [item]);
 
   const save = async () => {
-    if (!work.trim() || !price.trim()) return Alert.alert("Missing fields", "Fill in both fields.");
+    if (!work.trim() || !price.trim())
+      return Alert.alert("Missing fields", "Fill in both fields.");
     try {
       setSaving(true);
       await requestAPI.updateRequest(item._id, { work, price: Number(price) });
@@ -150,7 +258,9 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
           <TextInput style={m.input} value={price} onChangeText={setPrice}
             keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#9ca3af" />
           <View style={m.btnRow}>
-            <TouchableOpacity style={m.cancelBtn} onPress={onClose}><Text style={m.cancelText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
+              <Text style={m.cancelText}>Cancel</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={m.saveBtn} onPress={save} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.saveText}>Save</Text>}
             </TouchableOpacity>
@@ -161,7 +271,7 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
   );
 }
 
-// ── Tab: Selling ──────────────────────────────────────────────────────────────
+// ─── Tab: Selling ──────────────────────────────────────────────────────────────
 function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrderAction, router }) {
   return (
     <>
@@ -178,14 +288,13 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                 </View>
                 <Text style={s.desc} numberOfLines={2}>{item.description}</Text>
                 <View style={s.actRow}>
-                  <ActionBtn label="✏️ Edit"    variant="edit"   onPress={() => onEditItem(item)} />
-                  <ActionBtn label="🗑 Delete"  variant="delete" onPress={() => onDeleteItem(item._id, "item")} />
+                  <ActionBtn label="✏️ Edit"   variant="edit"   onPress={() => onEditItem(item)} />
+                  <ActionBtn label="🗑 Delete" variant="delete" onPress={() => onDeleteItem(item._id, "item")} />
                 </View>
               </View>
             </View>
           ))
       }
-
       {incomingOrders.length > 0 && (
         <>
           <Text style={[s.secLabel, { marginTop: 20 }]}>Incoming orders ({incomingOrders.length})</Text>
@@ -205,14 +314,13 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                 {order.rentStart && (
                   <Text style={s.metaText}>{formatDate(order.rentStart)} → {formatDate(order.rentEnd)}</Text>
                 )}
-                {/* Show payment status */}
                 {order.paymentStatus === "paid" && (
                   <Text style={[s.metaText, { color: "#15803d" }]}>💳 Payment received</Text>
                 )}
                 {order.status === "pending" && (
                   <View style={[s.actRow, { marginTop: 6 }]}>
-                    <ActionBtn label="✓ Confirm"  variant="confirm" onPress={() => onOrderAction(order._id, "confirmed")} />
-                    <ActionBtn label="✕ Decline"  variant="delete"  onPress={() => onOrderAction(order._id, "cancelled")} />
+                    <ActionBtn label="✓ Confirm" variant="confirm" onPress={() => onOrderAction(order._id, "confirmed")} />
+                    <ActionBtn label="✕ Decline" variant="delete"  onPress={() => onOrderAction(order._id, "cancelled")} />
                   </View>
                 )}
                 {order.status === "confirmed" && (
@@ -228,7 +336,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
   );
 }
 
-// ── Tab: Buying ───────────────────────────────────────────────────────────────
+// ─── Tab: Buying ───────────────────────────────────────────────────────────────
 function BuyingTab({ myOrders, onOrderAction, router }) {
   if (myOrders.length === 0)
     return <EmptyState icon="🛍️" text="No purchases yet" btnText="Browse listings" onPress={() => router.push("/home")} />;
@@ -303,7 +411,7 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
   );
 }
 
-// ── Tab: Requests ─────────────────────────────────────────────────────────────
+// ─── Tab: Requests ─────────────────────────────────────────────────────────────
 function RequestsTab({ myRequests, onEdit, onDelete, router }) {
   if (myRequests.length === 0)
     return <EmptyState icon="🙋" text="No requests yet" btnText="+ Post request" onPress={() => router.push("/request")} />;
@@ -327,18 +435,21 @@ function RequestsTab({ myRequests, onEdit, onDelete, router }) {
   );
 }
 
-// ── Main Profile Screen ───────────────────────────────────────────────────────
+// ─── Main Profile Screen ───────────────────────────────────────────────────────
 export default function Profile() {
   const router = useRouter();
-  const [user, setUser]               = useState(null);
-  const [myItems, setMyItems]         = useState([]);
-  const [myRequests, setMyRequests]   = useState([]);
-  const [myOrders, setMyOrders]       = useState([]);
-  const [incomingOrders, setIncoming] = useState([]);
-  const [wishlistCount, setWishlistCount] = useState(0);
-  const [loading, setLoading]         = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
-  const [tab, setTab]                 = useState("selling");
+
+  const [user,           setUser]           = useState(null);
+  const [allItems,       setAllItems]       = useState([]); // all org items (for wishlist grid)
+  const [myItems,        setMyItems]        = useState([]);
+  const [myRequests,     setMyRequests]     = useState([]);
+  const [myOrders,       setMyOrders]       = useState([]);
+  const [incomingOrders, setIncoming]       = useState([]);
+  const [wishlistIds,    setWishlistIds]    = useState([]); // array of item._id strings
+  const [loading,        setLoading]        = useState(true);
+  const [refreshing,     setRefreshing]     = useState(false);
+  const [tab,            setTab]            = useState("selling");
+  const [showWishlist,   setShowWishlist]   = useState(false); // wishlist modal
 
   const [editingItem,     setEditingItem]     = useState(null);
   const [editItemVisible, setEditItemVisible] = useState(false);
@@ -347,26 +458,57 @@ export default function Profile() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [u, stored, itemsRes, reqsRes, myOrdersRes, sellingOrdersRes] = await Promise.all([
+      const [
+        u,
+        wishlistRes,
+        allItemsRes,
+        itemsRes,
+        reqsRes,
+        myOrdersRes,
+        sellingOrdersRes,
+      ] = await Promise.all([
         getUser(),
-        AsyncStorage.getItem("wishlist"),
+        userAPI.getWishlist(),
+        itemAPI.getItems(),          // all org items needed for wishlist grid
         itemAPI.getMyItems(),
         requestAPI.getMyRequests(),
         orderAPI.getMyOrders(),
         orderAPI.getSellingOrders(),
       ]);
+
       setUser(u);
-      const ids = new Set(stored ? JSON.parse(stored) : []);
-      setWishlistCount(ids.size);
+      if (wishlistRes.success)      setWishlistIds(wishlistRes.data || []);
+      const orgItems = Array.isArray(allItemsRes)
+        ? allItemsRes
+        : allItemsRes?.data || allItemsRes?.items || [];
+      setAllItems(orgItems);
       if (itemsRes.success)         setMyItems(itemsRes.data);
       if (reqsRes.success)          setMyRequests(reqsRes.data);
       if (myOrdersRes.success)      setMyOrders(myOrdersRes.data);
       if (sellingOrdersRes.success) setIncoming(sellingOrdersRes.data);
-    } catch (e) { Alert.alert("Error", e.message); }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (e) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
+
+  // Toggle wishlist from inside the modal
+  const handleWishlistToggle = async (itemId) => {
+    const isIn = wishlistIds.includes(itemId);
+    // Optimistic
+    setWishlistIds((prev) => isIn ? prev.filter((x) => x !== itemId) : [...prev, itemId]);
+    try {
+      const res = await userAPI.toggleWishlist(itemId);
+      if (res.success) setWishlistIds(res.wishlist || []);
+    } catch (e) {
+      // Revert
+      setWishlistIds((prev) => isIn ? [...prev, itemId] : prev.filter((x) => x !== itemId));
+    }
+  };
 
   const handleDelete = (id, type) => {
     Alert.alert("Delete?", `Remove this ${type} permanently?`, [
@@ -398,15 +540,19 @@ export default function Profile() {
   const handleLogout = () => {
     Alert.alert("Log out", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Log out", style: "destructive", onPress: async () => { await clearSession(); router.replace("/login"); } },
+      {
+        text: "Log out", style: "destructive",
+        onPress: async () => { await clearSession(); router.replace("/login"); },
+      },
     ]);
   };
 
-  if (loading) return <View style={s.centered}><ActivityIndicator size="large" color="#1a1a1a" /></View>;
+  if (loading)
+    return <View style={s.centered}><ActivityIndicator size="large" color="#1a1a1a" /></View>;
 
   const TABS = [
-    { key: "selling",  label: `Selling (${myItems.length})` },
-    { key: "buying",   label: `Buying (${myOrders.length})` },
+    { key: "selling",  label: `Selling (${myItems.length})`     },
+    { key: "buying",   label: `Buying (${myOrders.length})`     },
     { key: "requests", label: `Requests (${myRequests.length})` },
   ];
 
@@ -414,39 +560,51 @@ export default function Profile() {
     <View style={s.screen}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchAll(); }} tintColor="#fff" />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchAll(); }}
+            tintColor="#fff"
+          />
+        }
       >
         {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.coverStrip} />
           <View style={s.avatarRow}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>{(user?.username || user?.email || "U")[0].toUpperCase()}</Text>
+              <Text style={s.avatarText}>
+                {(user?.username || user?.email || "U")[0].toUpperCase()}
+              </Text>
             </View>
-            {/* Top-right icons: wishlist + logout */}
-            <View style={s.headerIcons}>
-              <TouchableOpacity style={s.iconBtn} onPress={() => router.push("/wishlist")}>
-                <Text style={s.iconBtnText}>🤍</Text>
-                {wishlistCount > 0 && (
-                  <View style={s.badge}>
-                    <Text style={s.badgeText}>{wishlistCount > 9 ? "9+" : wishlistCount}</Text>
-                  </View>
-                )}
+
+            {/* ── Header actions: improved heart pill + logout ── */}
+            <View style={s.headerActions}>
+              {/* Wishlist heart pill button */}
+              <TouchableOpacity
+                onPress={() => setShowWishlist(true)}
+                style={s.simpleHeart}
+              >
+                <Ionicons name="heart" size={22} color="#e11d48" />
               </TouchableOpacity>
+
               <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
                 <Text style={s.logoutBtnText}>Log out</Text>
               </TouchableOpacity>
             </View>
           </View>
+
           <Text style={s.userName}>{user?.username || "Your Name"}</Text>
           <Text style={s.userEmail}>{user?.email}</Text>
           {user?.org && <Text style={s.userOrg}>{user.org}</Text>}
+
+          {/* ── Stats ── */}
           <View style={s.statsRow}>
             {[
-              { n: myItems.length,    l: "Listings"  },
-              { n: wishlistCount,     l: "Saved"     },
-              { n: myOrders.length,   l: "Orders"    },
-              { n: myRequests.length, l: "Requests"  },
+              { n: myItems.length,      l: "Listings"  },
+              { n: wishlistIds.length,  l: "Wishlist"  },
+              { n: myOrders.length,     l: "Orders"    },
+              { n: myRequests.length,   l: "Requests"  },
             ].map((st, i, arr) => (
               <React.Fragment key={st.l}>
                 <View style={s.stat}>
@@ -463,51 +621,131 @@ export default function Profile() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsWrap}>
           <View style={s.tabs}>
             {TABS.map(({ key, label }) => (
-              <TouchableOpacity key={key} style={[s.tab, tab === key && s.tabActive]} onPress={() => setTab(key)}>
+              <TouchableOpacity
+                key={key}
+                style={[s.tab, tab === key && s.tabActive]}
+                onPress={() => setTab(key)}
+              >
                 <Text style={[s.tabText, tab === key && s.tabTextActive]}>{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </ScrollView>
 
-        {/* ── Content ── */}
+        {/* ── Tab content ── */}
         <View style={s.content}>
-          {tab === "selling"  && <SellingTab  myItems={myItems} incomingOrders={incomingOrders} onEditItem={(i) => { setEditingItem(i); setEditItemVisible(true); }} onDeleteItem={handleDelete} onOrderAction={handleOrderAction} router={router} />}
-          {tab === "buying"   && <BuyingTab   myOrders={myOrders} onOrderAction={handleOrderAction} router={router} />}
-          {tab === "requests" && <RequestsTab myRequests={myRequests} onEdit={(r) => { setEditingReq(r); setEditReqVisible(true); }} onDelete={handleDelete} router={router} />}
+          {tab === "selling"  && (
+            <SellingTab
+              myItems={myItems}
+              incomingOrders={incomingOrders}
+              onEditItem={(i) => { setEditingItem(i); setEditItemVisible(true); }}
+              onDeleteItem={handleDelete}
+              onOrderAction={handleOrderAction}
+              router={router}
+            />
+          )}
+          {tab === "buying"   && (
+            <BuyingTab myOrders={myOrders} onOrderAction={handleOrderAction} router={router} />
+          )}
+          {tab === "requests" && (
+            <RequestsTab
+              myRequests={myRequests}
+              onEdit={(r) => { setEditingReq(r); setEditReqVisible(true); }}
+              onDelete={handleDelete}
+              router={router}
+            />
+          )}
         </View>
         <View style={{ height: 48 }} />
       </ScrollView>
 
-      {editingItem && <EditItemModal item={editingItem} visible={editItemVisible} onClose={() => setEditItemVisible(false)} onSave={fetchAll} />}
-      {editingReq  && <EditRequestModal item={editingReq}  visible={editReqVisible}  onClose={() => setEditReqVisible(false)}  onSave={fetchAll} />}
+      {/* ── Wishlist bottom sheet modal ── */}
+      <WishlistModal
+        visible={showWishlist}
+        onClose={() => setShowWishlist(false)}
+        allItems={allItems}
+        wishlistIds={wishlistIds}
+        onToggle={handleWishlistToggle}
+        router={router}
+      />
+
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          visible={editItemVisible}
+          onClose={() => setEditItemVisible(false)}
+          onSave={fetchAll}
+        />
+      )}
+      {editingReq && (
+        <EditRequestModal
+          item={editingReq}
+          visible={editReqVisible}
+          onClose={() => setEditReqVisible(false)}
+          onSave={fetchAll}
+        />
+      )}
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen:   { flex: 1, backgroundColor: "#f8f7f4" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  header:      { backgroundColor: "#1a1a1a", paddingBottom: 20 },
-  coverStrip:  { height: 52, backgroundColor: "#2a2a2a" },
-  avatarRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20 },
-  avatar:      { width: 68, height: 68, borderRadius: 34, backgroundColor: "#333", borderWidth: 3, borderColor: "#1a1a1a", justifyContent: "center", alignItems: "center", marginTop: -34 },
-  avatarText:  { fontSize: 26, color: "#fff", fontWeight: "700" },
+  header:     { backgroundColor: "#1a1a1a", paddingBottom: 20 },
+  coverStrip: { height: 52, backgroundColor: "#2a2a2a" },
+  avatarRow:  {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "flex-end", paddingHorizontal: 20,
+  },
+  avatar: {
+    width: 68, height: 68, borderRadius: 34,
+    backgroundColor: "#333", borderWidth: 3, borderColor: "#1a1a1a",
+    justifyContent: "center", alignItems: "center", marginTop: -34,
+  },
+  avatarText: { fontSize: 26, color: "#fff", fontWeight: "700" },
 
-  headerIcons: { flexDirection: "row", alignItems: "center", gap: 10, paddingBottom: 6 },
-  iconBtn:     { position: "relative", padding: 4 },
-  iconBtnText: { fontSize: 20 },
-  badge:       { position: "absolute", top: 0, right: 0, backgroundColor: "#ef4444", borderRadius: 8, minWidth: 16, height: 16, justifyContent: "center", alignItems: "center", paddingHorizontal: 3 },
-  badgeText:   { color: "#fff", fontSize: 9, fontWeight: "800" },
-  logoutBtn:   { borderWidth: 0.5, borderColor: "#555", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  headerActions: {
+    flexDirection: "row", alignItems: "center",
+    gap: 8, paddingBottom: 6,
+  },
+
+  // ── Improved heart pill in header ──
+  heartPill: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 11, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1.5, borderColor: "#fda4af",
+    backgroundColor: "#fff1f2",
+    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18, shadowRadius: 5, elevation: 3,
+  },
+  heartPillLabel:     { fontSize: 12, fontWeight: "700", color: "#e11d48" },
+  heartPillBadge: {
+    marginLeft: 5, backgroundColor: "#e11d48",
+    borderRadius: 9, minWidth: 17, height: 17,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
+  },
+  heartPillBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+
+  logoutBtn:     {
+    borderWidth: 0.5, borderColor: "#555", borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
   logoutBtnText: { color: "#9ca3af", fontSize: 12, fontWeight: "600" },
 
   userName:  { fontSize: 20, fontWeight: "700", color: "#fff", paddingHorizontal: 20, marginTop: 10 },
-  userEmail: { fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
+  userEmail: {
+    fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
   userOrg:   { fontSize: 11, color: "#666", paddingHorizontal: 20, marginTop: 2 },
 
-  statsRow:  { flexDirection: "row", marginTop: 16, borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14 },
+  statsRow: {
+    flexDirection: "row", marginTop: 16,
+    borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14,
+  },
   stat:      { flex: 1, alignItems: "center" },
   statNum:   { fontSize: 18, fontWeight: "700", color: "#fff" },
   statLabel: { fontSize: 9, color: "#666", marginTop: 2 },
@@ -521,18 +759,31 @@ const s = StyleSheet.create({
   tabTextActive: { color: "#1a1a1a" },
 
   content:  { padding: 16 },
-  secLabel: { fontSize: 10, fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  secLabel: {
+    fontSize: 10, fontWeight: "700", color: "#9ca3af",
+    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
+  },
 
-  card:        { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, marginBottom: 10, overflow: "hidden", borderWidth: 0.5, borderColor: "#ebebeb" },
-  cardImg:     { width: 84, height: 96, resizeMode: "cover" },
+  card:           {
+    flexDirection: "row", backgroundColor: "#fff", borderRadius: 14,
+    marginBottom: 10, overflow: "hidden",
+    borderWidth: 0.5, borderColor: "#ebebeb",
+  },
+  cardImg:        { width: 84, height: 96, resizeMode: "cover" },
   imgPlaceholder: { backgroundColor: "#e9e9e7" },
-  cardBody:    { flex: 1, padding: 10 },
-  cardTop:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  cardMeta:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 3, marginBottom: 3 },
-  price:       { fontSize: 15, fontWeight: "700", color: "#1a1a1a" },
-  desc:        { fontSize: 12, color: "#6b7280", lineHeight: 17, marginBottom: 6 },
-  metaText:    { fontSize: 10, color: "#9ca3af" },
-  actRow:      { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  cardBody:       { flex: 1, padding: 10 },
+  cardTop:        {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginBottom: 4,
+  },
+  cardMeta:       {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginTop: 3, marginBottom: 3,
+  },
+  price:    { fontSize: 15, fontWeight: "700", color: "#1a1a1a" },
+  desc:     { fontSize: 12, color: "#6b7280", lineHeight: 17, marginBottom: 6 },
+  metaText: { fontSize: 10, color: "#9ca3af" },
+  actRow:   { flexDirection: "row", gap: 6, flexWrap: "wrap" },
 
   pill:         { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   pillSell:     { backgroundColor: "#f0fdf4" },
@@ -547,28 +798,137 @@ const s = StyleSheet.create({
   actionBtn:     { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
   actionBtnText: { fontSize: 11, fontWeight: "700" },
 
-  reqCard:  { backgroundColor: "#fff", borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 0.5, borderColor: "#ebebeb" },
-  reqTop:   { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3, gap: 8 },
+  reqCard: {
+    backgroundColor: "#fff", borderRadius: 14, padding: 12,
+    marginBottom: 10, borderWidth: 0.5, borderColor: "#ebebeb",
+  },
+  reqTop:   {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "flex-start", marginBottom: 3, gap: 8,
+  },
   reqWork:  { fontSize: 13, fontWeight: "600", color: "#1a1a1a", flex: 1, lineHeight: 18 },
   reqPrice: { fontSize: 14, fontWeight: "700", color: "#16a34a", flexShrink: 0 },
 
   empty:        { alignItems: "center", paddingVertical: 44, gap: 8 },
   emptyIcon:    { fontSize: 38 },
   emptyText:    { fontSize: 14, fontWeight: "600", color: "#6b7280" },
-  emptyBtn:     { backgroundColor: "#1a1a1a", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10, marginTop: 4 },
+  emptyBtn:     {
+    backgroundColor: "#1a1a1a", borderRadius: 20,
+    paddingHorizontal: 20, paddingVertical: 10, marginTop: 4,
+  },
   emptyBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 });
 
+// ── Wishlist modal styles ──────────────────────────────────────────────────────
+const wl = StyleSheet.create({
+  backdrop: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.48)",
+  },
+  sheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    maxHeight: "88%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
+  },
+  handle: {
+    width: 38, height: 4, borderRadius: 2,
+    backgroundColor: "#e5e7eb",
+    alignSelf: "center", marginTop: 10, marginBottom: 4,
+  },
+  sheetHeader: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: "#f3f4f6",
+  },
+  sheetTitleRow: { flexDirection: "row", alignItems: "center" },
+  sheetTitle:    { fontSize: 18, fontWeight: "700", color: "#111" },
+  countBadge: {
+    marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10,
+    minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6,
+  },
+  countBadgeText: { fontSize: 12, fontWeight: "800", color: "#e11d48" },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center", justifyContent: "center",
+  },
+
+  listContent: { padding: 12 },
+  row:         { justifyContent: "space-between", marginBottom: 12 },
+
+  card: {
+    width: CARD_W, backgroundColor: "#fff", borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+  },
+  cardImg: { width: "100%", height: CARD_W * 1.05 },
+  noImg:   { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  cardBody: { padding: 9 },
+  price:    { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2 },
+  desc:     { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 3 },
+  meta:     { fontSize: 10, color: "#9ca3af" },
+
+  // ── Improved card heart in wishlist modal — solid red, glowing ──
+  heartBtn: {
+    position: "absolute", top: 8, right: 8,
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "#e11d48",
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45, shadowRadius: 5, elevation: 5,
+  },
+
+  typeBadge:    { position: "absolute", top: 8, left: 8, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
+  badgeSell:    { backgroundColor: "#6366f1" },
+  badgeRent:    { backgroundColor: "#f59e0b" },
+  typeBadgeText:{ color: "#fff", fontSize: 9, fontWeight: "700" },
+
+  empty: {
+    alignItems: "center", paddingVertical: 52, paddingHorizontal: 40, gap: 10,
+  },
+  emptyTitle:  { fontSize: 18, fontWeight: "700", color: "#374151" },
+  emptySub:    { fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 19 },
+  browseBtn:   {
+    marginTop: 8, backgroundColor: "#1a1a1a",
+    borderRadius: 22, paddingHorizontal: 24, paddingVertical: 11,
+  },
+  browseBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+});
+
+// ── Edit modal styles ─────────────────────────────────────────────────────────
 const m = StyleSheet.create({
-  overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet:     { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
-  title:     { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 20 },
-  label:     { fontSize: 11, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-  input:     { backgroundColor: "#f8f7f4", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1a1a1a", marginBottom: 16, borderWidth: 1, borderColor: "#e5e5e5" },
-  ta:        { height: 80, textAlignVertical: "top" },
-  btnRow:    { flexDirection: "row", gap: 12, marginTop: 4 },
-  cancelBtn: { flex: 1, borderWidth: 1, borderColor: "#e5e5e5", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  cancelText:{ fontWeight: "600", color: "#6b7280" },
-  saveBtn:   { flex: 1, backgroundColor: "#1a1a1a", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveText:  { fontWeight: "700", color: "#fff" },
+  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet:      {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 44,
+  },
+  title:      { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 20 },
+  label:      {
+    fontSize: 11, fontWeight: "700", color: "#6b7280",
+    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6,
+  },
+  input:      {
+    backgroundColor: "#f8f7f4", borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: "#1a1a1a", marginBottom: 16,
+    borderWidth: 1, borderColor: "#e5e5e5",
+  },
+  ta:         { height: 80, textAlignVertical: "top" },
+  btnRow:     { flexDirection: "row", gap: 12, marginTop: 4 },
+  cancelBtn:  {
+    flex: 1, borderWidth: 1, borderColor: "#e5e5e5",
+    borderRadius: 12, paddingVertical: 14, alignItems: "center",
+  },
+  simpleHeart: {
+  padding: 6,
+  justifyContent: "center",
+  alignItems: "center", 
+  },
+  cancelText: { fontWeight: "600", color: "#6b7280" },
+  saveBtn:    { flex: 1, backgroundColor: "#1a1a1a", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  saveText:   { fontWeight: "700", color: "#fff" },
 });

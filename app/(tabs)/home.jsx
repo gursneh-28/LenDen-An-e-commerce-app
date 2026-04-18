@@ -14,15 +14,15 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 const CATEGORIES = [
-  { key: "all", label: "All", icon: "🏠" },
-  { key: "sell", label: "For Sale", icon: "🏷️" },
-  { key: "rent", label: "For Rent", icon: "🔑" },
-  { key: "electronics", label: "Electronics", icon: "📱" },
-  { key: "books", label: "Books", icon: "📚" },
-  { key: "clothing", label: "Clothing", icon: "👗" },
-  { key: "furniture", label: "Furniture", icon: "🪑" },
-  { key: "sports", label: "Sports", icon: "⚽" },
-  { key: "other", label: "Other", icon: "📦" },
+  { key: "all",         label: "All",        icon: "🏠" },
+  { key: "sell",        label: "For Sale",   icon: "🏷️" },
+  { key: "rent",        label: "For Rent",   icon: "🔑" },
+  { key: "electronics", label: "Electronics",icon: "📱" },
+  { key: "books",       label: "Books",      icon: "📚" },
+  { key: "clothing",    label: "Clothing",   icon: "👗" },
+  { key: "furniture",   label: "Furniture",  icon: "🪑" },
+  { key: "sports",      label: "Sports",     icon: "⚽" },
+  { key: "other",       label: "Other",      icon: "📦" },
 ];
 
 function timeAgo(iso) {
@@ -37,22 +37,29 @@ function timeAgo(iso) {
 export default function Home() {
   const router = useRouter();
 
-  const [items, setItems] = useState([]);
-  const [filtered, setFiltered] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
+  const [items,          setItems]          = useState([]);
+  const [filtered,       setFiltered]       = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [refreshing,     setRefreshing]     = useState(false);
+  const [search,         setSearch]         = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
-  const [wishlist, setWishlist] = useState([]);
-  const [showWishlist, setShowWishlist] = useState(false);
-  const [userName, setUserName] = useState("");
+  const [wishlist,       setWishlist]       = useState([]);
+  const [showWishlist,   setShowWishlist]   = useState(false);
+  const [userName,       setUserName]       = useState("");
 
   useFocusEffect(
     useCallback(() => {
       AsyncStorage.getItem("user").then((raw) => {
         if (raw) {
           const u = JSON.parse(raw);
-          setUserName(u.name?.split(" ")[0] || "");
+        
+          const name =
+            u.username ||
+            u.name ||
+            u.email?.split("@")[0] ||
+            "there";
+        
+          setUserName(name.split(" ")[0]);
         }
       });
       fetchItems();
@@ -69,7 +76,6 @@ export default function Home() {
     }
   };
 
-  // ✅ FIXED fetchItems
   const fetchItems = async () => {
     try {
       const data = await itemAPI.getItems();
@@ -86,17 +92,13 @@ export default function Home() {
 
   const applyFilters = (list, q, cat) => {
     let out = [...list];
-
     if (cat !== "all") {
       if (cat === "sell" || cat === "rent") {
         out = out.filter((i) => i.type === cat);
       } else {
-        out = out.filter(
-          (i) => i.category?.toLowerCase() === cat.toLowerCase()
-        );
+        out = out.filter((i) => i.category?.toLowerCase() === cat.toLowerCase());
       }
     }
-
     if (q.trim()) {
       const lower = q.toLowerCase();
       out = out.filter(
@@ -105,7 +107,6 @@ export default function Home() {
           i.uploaderName?.toLowerCase().includes(lower)
       );
     }
-
     setFiltered(out);
   };
 
@@ -124,15 +125,11 @@ export default function Home() {
     setWishlist((prev) =>
       isWishlisted ? prev.filter((x) => x !== id) : [...prev, id]
     );
-
     try {
       const res = await userAPI.toggleWishlist(id);
-      if (res.success) {
-        setWishlist(res.wishlist);
-      }
+      if (res.success) setWishlist(res.wishlist);
     } catch (e) {
       console.log("wishlist toggle error", e);
-      // Revert optimism if failed
       setWishlist((prev) =>
         isWishlisted ? [...prev, id] : prev.filter((x) => x !== id)
       );
@@ -140,20 +137,16 @@ export default function Home() {
   };
 
   const wishlistItems = items.filter((i) => wishlist.includes(i._id));
-  const displayList = showWishlist ? wishlistItems : filtered;
+  const displayList   = showWishlist ? wishlistItems : filtered;
 
   const renderCard = ({ item }) => {
     const wishlisted = wishlist.includes(item._id);
-
     return (
       <TouchableOpacity
         style={styles.card}
-        activeOpacity={0.85}
+        activeOpacity={0.88}
         onPress={() =>
-          router.push({
-            pathname: "/item-detail",
-            params: { item: JSON.stringify(item) },
-          })
+          router.push({ pathname: "/item-detail", params: { item: JSON.stringify(item) } })
         }
       >
         {item.image ? (
@@ -164,23 +157,20 @@ export default function Home() {
           </View>
         )}
 
+        {/* ── Improved card heart button ── */}
         <TouchableOpacity
-          style={styles.heartBtn}
+          style={[styles.heartBtn, wishlisted && styles.heartBtnActive]}
           onPress={() => toggleWishlist(item._id)}
+          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
         >
           <Ionicons
             name={wishlisted ? "heart" : "heart-outline"}
-            size={20}
-            color={wishlisted ? "#e11d48" : "#fff"}
+            size={16}
+            color={wishlisted ? "#fff" : "#fff"}
           />
         </TouchableOpacity>
 
-        <View
-          style={[
-            styles.badge,
-            item.type === "rent" ? styles.badgeRent : styles.badgeSell,
-          ]}
-        >
+        <View style={[styles.badge, item.type === "rent" ? styles.badgeRent : styles.badgeSell]}>
           <Text style={styles.badgeText}>
             {item.type === "rent" ? "Rent" : "Sale"}
           </Text>
@@ -188,12 +178,8 @@ export default function Home() {
 
         <View style={styles.cardBody}>
           <Text style={styles.cardPrice}>₹{item.price}</Text>
-          <Text style={styles.cardDesc} numberOfLines={2}>
-            {item.description}
-          </Text>
-          <Text style={styles.cardMeta}>
-            {item.uploaderName} · {timeAgo(item.createdAt)}
-          </Text>
+          <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+          <Text style={styles.cardMeta}>{item.uploaderName} · {timeAgo(item.createdAt)}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -202,7 +188,7 @@ export default function Home() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color="#e11d48" />
       </View>
     );
   }
@@ -211,30 +197,33 @@ export default function Home() {
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ✅ HEADER MOVED OUTSIDE */}
       <View style={styles.headerContainer}>
+        {/* ── Greeting row ── */}
         <View style={styles.greetRow}>
           <View>
-            <Text style={styles.greeting}>Hey {userName || "there"} 👋</Text>
+            <Text style={styles.greeting}>Hey {userName ? userName : "there"}</Text>
             <Text style={styles.subGreeting}>Find something in your org</Text>
           </View>
+
+          {/* ── Improved wishlist pill button ── */}
           <TouchableOpacity
-            style={[styles.wishlistBtn, showWishlist && styles.wishlistBtnActive]}
+            style={[styles.wishlistPill, showWishlist && styles.wishlistPillActive]}
             onPress={() => setShowWishlist((v) => !v)}
+            activeOpacity={0.82}
           >
             <Ionicons
               name={showWishlist ? "heart" : "heart-outline"}
-              size={22}
+              size={17}
               color={showWishlist ? "#fff" : "#e11d48"}
+              style={{ marginRight: 5 }}
             />
-            {wishlist.length > 0 && (
-              <View style={styles.badge2}>
-                <Text style={styles.badge2Text}>{wishlist.length}</Text>
-              </View>
-            )}
+            <Text style={[styles.wishlistPillLabel, showWishlist && styles.wishlistPillLabelActive]}>
+              {showWishlist ? "All items" : "Wishlist"}
+            </Text>
           </TouchableOpacity>
         </View>
 
+        {/* ── Search bar ── */}
         <View style={styles.searchRow}>
           <Ionicons name="search" size={18} color="#9ca3af" style={{ marginLeft: 12 }} />
           <TextInput
@@ -253,6 +242,7 @@ export default function Home() {
           )}
         </View>
 
+        {/* ── Category pills ── */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -268,22 +258,22 @@ export default function Home() {
                 onPress={() => handleCategory(cat.key)}
               >
                 <Text style={styles.catIcon}>{cat.icon}</Text>
-                <Text style={[styles.catLabel, active && styles.catLabelActive]}>
-                  {cat.label}
-                </Text>
+                <Text style={[styles.catLabel, active && styles.catLabelActive]}>{cat.label}</Text>
                 {active && <View style={styles.catUnderline} />}
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>
-            {showWishlist
-              ? `❤️ Wishlist (${wishlistItems.length})`
-              : `${displayList.length} listings`}
-          </Text>
-        </View>
+        {/* ── Section header row — only in wishlist mode ── */}
+        {showWishlist && (
+          <View style={styles.sectionRow}>
+            <View style={styles.sectionLeft}>
+              <Ionicons name="heart" size={14} color="#e11d48" style={{ marginRight: 5 }} />
+              <Text style={styles.sectionTitle}>Wishlist · {wishlistItems.length} saved</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       <FlatList
@@ -298,22 +288,19 @@ export default function Home() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              fetchItems();
-            }}
-            colors={["#6366f1"]}
+            onRefresh={() => { setRefreshing(true); fetchItems(); }}
+            colors={["#e11d48"]}
           />
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 48 }}>📦</Text>
+            <Ionicons name={showWishlist ? "heart-outline" : "cube-outline"} size={52} color="#e5e7eb" />
             <Text style={styles.emptyTitle}>
-              {showWishlist ? "No wishlisted items" : "No items found"}
+              {showWishlist ? "Nothing saved yet" : "No items found"}
             </Text>
             <Text style={styles.emptySub}>
               {showWishlist
-                ? "Tap ♡ on any listing to save it"
+                ? "Tap ♡ on any listing to save it here"
                 : "Be the first to list something!"}
             </Text>
           </View>
@@ -323,33 +310,42 @@ export default function Home() {
   );
 }
 
-// ✅ YOUR ORIGINAL STYLES (UNCHANGED)
 const styles = StyleSheet.create({
-  screen:  { flex: 1, backgroundColor: "#f8f8f8" },
-  center:  { flex: 1, justifyContent: "center", alignItems: "center" },
+  screen: { flex: 1, backgroundColor: "#f8f8f8" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  headerContainer: { backgroundColor: "#fff", paddingBottom: 8 },
+  headerContainer: { backgroundColor: "#fff", paddingBottom: 4 },
+
   greetRow: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", paddingHorizontal: 16,
-    paddingTop: Platform.OS === "android" ? 14 : 10, paddingBottom: 10,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "android" ? 14 : 10,
+    paddingBottom: 12,
   },
   greeting:    { fontSize: 20, fontWeight: "700", color: "#111" },
   subGreeting: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
 
-  wishlistBtn: {
-    position: "relative", width: 44, height: 44, borderRadius: 22,
-    borderWidth: 1.5, borderColor: "#e11d48",
-    alignItems: "center", justifyContent: "center", backgroundColor: "#fff",
+  // ── Improved wishlist pill ──
+  wishlistPill: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 13, paddingVertical: 9,
+    borderRadius: 22, borderWidth: 1.5, borderColor: "#fda4af",
+    backgroundColor: "#fff4f5",
+    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12, shadowRadius: 6, elevation: 2,
   },
-  wishlistBtnActive: { backgroundColor: "#e11d48", borderColor: "#e11d48" },
-  badge2: {
-    position: "absolute", top: -4, right: -4,
-    backgroundColor: "#e11d48", borderRadius: 8,
-    minWidth: 16, height: 16,
-    alignItems: "center", justifyContent: "center", paddingHorizontal: 3,
+  wishlistPillActive: {
+    backgroundColor: "#e11d48", borderColor: "#e11d48",
+    shadowOpacity: 0.28,
   },
-  badge2Text: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  wishlistPillLabel: { fontSize: 13, fontWeight: "700", color: "#e11d48" },
+  wishlistPillLabelActive: { color: "#fff" },
+  wishlistCount: {
+    marginLeft: 6, backgroundColor: "#e11d48",
+    borderRadius: 10, minWidth: 18, height: 18,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
+  },
+  wishlistCountText: { color: "#fff", fontSize: 10, fontWeight: "800" },
 
   searchRow: {
     flexDirection: "row", alignItems: "center",
@@ -358,7 +354,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: "#111", paddingHorizontal: 8 },
 
-  catScroll:      { paddingHorizontal: 12, paddingBottom: 4, gap: 8 },
+  catScroll:      { paddingHorizontal: 12, paddingBottom: 6, gap: 8 },
   catPill:        { alignItems: "center", paddingHorizontal: 14, paddingVertical: 8, position: "relative" },
   catIcon:        { fontSize: 18, marginBottom: 2 },
   catLabel:       { fontSize: 13, color: "#6b7280", fontWeight: "500" },
@@ -369,20 +365,22 @@ const styles = StyleSheet.create({
   },
 
   sectionRow: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", paddingHorizontal: 16, paddingVertical: 8,
-    borderTopWidth: 1, borderTopColor: "#f3f4f6",
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: "#fce7ea",
+    backgroundColor: "#fff9fa",
   },
-  sectionTitle: { fontSize: 13, color: "#6b7280", fontWeight: "600" },
+  sectionLeft:  { flexDirection: "row", alignItems: "center" },
+  sectionTitle: { fontSize: 13, color: "#e11d48", fontWeight: "700" },
 
-  listContent: { padding: 12, paddingTop: 0 },
+  listContent: { padding: 12, paddingTop: 8 },
   row:         { justifyContent: "space-between", marginBottom: 12 },
 
   card: {
-    width: CARD_WIDTH, backgroundColor: "#fff", borderRadius: 14,
+    width: CARD_WIDTH, backgroundColor: "#fff", borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 6, elevation: 3,
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
   },
   cardImage: { width: "100%", height: CARD_WIDTH * 1.1 },
   noImage:   { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
@@ -391,17 +389,25 @@ const styles = StyleSheet.create({
   cardDesc:  { fontSize: 12, color: "#6b7280", lineHeight: 16, marginBottom: 4 },
   cardMeta:  { fontSize: 11, color: "#9ca3af" },
 
+  // ── Improved card heart — shows filled red when active ──
   heartBtn: {
     position: "absolute", top: 8, right: 8,
-    backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 14, padding: 4,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.32)",
+    alignItems: "center", justifyContent: "center",
+  },
+  heartBtnActive: {
+    backgroundColor: "#e11d48",
+    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5, shadowRadius: 4, elevation: 4,
   },
 
-  badge:     { position: "absolute", top: 8, left: 8, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  badge:     { position: "absolute", top: 8, left: 8, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
   badgeSell: { backgroundColor: "#6366f1" },
   badgeRent: { backgroundColor: "#f59e0b" },
   badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
 
-  empty:      { alignItems: "center", paddingTop: 60, gap: 10 },
-  emptyTitle: { fontSize: 18, fontWeight: "700", color: "#111" },
-  emptySub:   { fontSize: 13, color: "#9ca3af" },
+  empty:      { alignItems: "center", paddingTop: 70, gap: 12 },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#374151" },
+  emptySub:   { fontSize: 13, color: "#9ca3af", textAlign: "center", paddingHorizontal: 40 },
 });
