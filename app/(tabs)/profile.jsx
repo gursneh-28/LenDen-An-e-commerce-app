@@ -521,7 +521,8 @@ export default function Profile() {
         ? allItemsRes
         : allItemsRes?.data || allItemsRes?.items || [];
       setAllItems(orgItems);
-
+      const validIds = orgItems.map(i => i._id);
+      setWishlistIds(prev => prev.filter(id => validIds.includes(id)));
       if (itemsRes.success)         setMyItems(itemsRes.data);
       if (reqsRes.success)          setMyRequests(reqsRes.data);
       if (myOrdersRes.success)      setMyOrders(myOrdersRes.data);
@@ -631,7 +632,7 @@ export default function Profile() {
           <View style={s.statsRow}>
             {[
               { n: myItems.length,     l: "Listings"  },
-              { n: wishlistIds.length, l: "Wishlist"  },
+              { n: allItems.filter(i => wishlistIds.includes(i._id)).length, l: "Wishlist" },
               { n: myOrders.length,    l: "Orders"    },
               { n: myRequests.length,  l: "Requests"  },
             ].map((st, i, arr) => (

@@ -30,23 +30,24 @@ const CATEGORIES = [
 
 export default function Upload() {
   const router = useRouter();
-  const [type, setType]               = useState("sell");
-  const [images, setImages]           = useState([]);
-  const [description, setDescription] = useState("");
-  const [price, setPrice]             = useState("");
-  const [category, setCategory]       = useState("other");   // ← new
-  const [loading, setLoading]         = useState(false);
 
-  const [dateRanges, setDateRanges]       = useState([]);
-  const [currentRange, setCurrentRange]   = useState({ start: null, end: null });
-  const [pickerMode, setPickerMode]       = useState(null);
-  const [showPicker, setShowPicker]       = useState(false);
+  const [type,        setType]        = useState("sell");
+  const [images,      setImages]      = useState([]);
+  const [name,        setName]        = useState("");        // ← required
+  const [description, setDescription] = useState("");        // ← optional
+  const [price,       setPrice]       = useState("");
+  const [category,    setCategory]    = useState("other");
+  const [loading,     setLoading]     = useState(false);
 
-  // ── Image picking with crop ────────────────────────────────────────────────
+  const [dateRanges,    setDateRanges]    = useState([]);
+  const [currentRange,  setCurrentRange]  = useState({ start: null, end: null });
+  const [pickerMode,    setPickerMode]    = useState(null);
+  const [showPicker,    setShowPicker]    = useState(false);
+
+  // ── Image helpers ──────────────────────────────────────────────────────────
   const pickImages = async () => {
-    if (images.length >= MAX_IMAGES) {
+    if (images.length >= MAX_IMAGES)
       return Alert.alert("Max images", `You can upload up to ${MAX_IMAGES} images.`);
-    }
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -54,15 +55,12 @@ export default function Upload() {
       return;
     }
 
-    const remaining = MAX_IMAGES - images.length;
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
     });
-
     if (result.canceled) return;
 
     try {
@@ -78,9 +76,8 @@ export default function Upload() {
   };
 
   const pickWithCamera = async () => {
-    if (images.length >= MAX_IMAGES) {
+    if (images.length >= MAX_IMAGES)
       return Alert.alert("Max images", `You can upload up to ${MAX_IMAGES} images.`);
-    }
 
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
@@ -93,7 +90,6 @@ export default function Upload() {
       aspect: [4, 3],
       quality: 1,
     });
-
     if (result.canceled) return;
 
     try {
@@ -105,26 +101,6 @@ export default function Upload() {
       setImages((prev) => [...prev, manipulated].slice(0, MAX_IMAGES));
     } catch {
       setImages((prev) => [...prev, result.assets[0]].slice(0, MAX_IMAGES));
-    }
-  };
-
-  const cropImage = async (index) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-    if (result.canceled) return;
-    try {
-      const manipulated = await ImageManipulator.manipulateAsync(
-        result.assets[0].uri,
-        [{ resize: { width: 1080 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      setImages((prev) => prev.map((img, i) => (i === index ? manipulated : img)));
-    } catch {
-      setImages((prev) => prev.map((img, i) => (i === index ? result.assets[0] : img)));
     }
   };
 
@@ -168,8 +144,8 @@ export default function Upload() {
   const handleSubmit = async () => {
     if (images.length === 0)
       return Alert.alert("Missing image", "Please add at least one photo.");
-    if (!description.trim())
-      return Alert.alert("Missing description", "Add a description.");
+    if (!name.trim())
+      return Alert.alert("Missing name", "Please enter a product name.");
     if (!price.trim() || isNaN(Number(price)))
       return Alert.alert("Invalid price", "Enter a valid price.");
     if (type === "rent" && dateRanges.length === 0)
@@ -178,10 +154,11 @@ export default function Upload() {
     try {
       setLoading(true);
       const formData = new FormData();
-      formData.append("type", type);
-      formData.append("description", description);
-      formData.append("price", price);
-      formData.append("category", category);   // ← new
+      formData.append("type",        type);
+      formData.append("name",        name.trim());
+      formData.append("description", description);   // optional, can be ""
+      formData.append("price",       price);
+      formData.append("category",    category);
 
       images.forEach((img, index) => {
         formData.append("images", {
@@ -209,6 +186,7 @@ export default function Upload() {
           { text: "OK", onPress: () => router.push("/home") },
         ]);
         setImages([]);
+        setName("");
         setDescription("");
         setPrice("");
         setCategory("other");
@@ -227,7 +205,7 @@ export default function Upload() {
       contentContainerStyle={s.container}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Sell / Rent Toggle */}
+      {/* ── Sell / Rent Toggle ── */}
       <View style={s.toggle}>
         {["sell", "rent"].map((t) => (
           <TouchableOpacity
@@ -242,7 +220,7 @@ export default function Upload() {
         ))}
       </View>
 
-      {/* Image Section */}
+      {/* ── Photos ── */}
       <Text style={s.label}>Photos ({images.length}/{MAX_IMAGES})</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.imagesRow}>
         {images.length < MAX_IMAGES && (
@@ -251,7 +229,6 @@ export default function Upload() {
             <Text style={s.addImageText}>Add Photo</Text>
           </TouchableOpacity>
         )}
-
         {images.map((img, index) => (
           <View key={index} style={s.thumbWrap}>
             <Image source={{ uri: img.uri }} style={s.thumb} />
@@ -271,13 +248,30 @@ export default function Upload() {
           </View>
         ))}
       </ScrollView>
-      <Text style={s.imageHint}>First photo will be the cover. Pick images individually to crop.</Text>
+      <Text style={s.imageHint}>First photo will be the cover.</Text>
 
-      {/* Description */}
-      <Text style={[s.label, { marginTop: 18 }]}>Description</Text>
+      {/* ── Product Name (required) ── */}
+      <Text style={[s.label, { marginTop: 18 }]}>
+        Product Name{" "}
+        <Text style={s.required}>*</Text>
+      </Text>
+      <TextInput
+        style={s.input}
+        placeholder="e.g. Sony WH-1000XM5 Headphones"
+        placeholderTextColor="#9ca3af"
+        value={name}
+        onChangeText={setName}
+        maxLength={80}
+      />
+
+      {/* ── Description (optional) ── */}
+      <Text style={s.label}>
+        Description{" "}
+        <Text style={s.optional}>(optional)</Text>
+      </Text>
       <TextInput
         style={[s.input, s.textArea]}
-        placeholder="Describe the item…"
+        placeholder="Condition, colour, any extra details…"
         placeholderTextColor="#9ca3af"
         value={description}
         onChangeText={setDescription}
@@ -285,7 +279,7 @@ export default function Upload() {
         numberOfLines={3}
       />
 
-      {/* Price */}
+      {/* ── Price ── */}
       <Text style={s.label}>Price {type === "rent" ? "(per day / period)" : ""}</Text>
       <TextInput
         style={s.input}
@@ -296,7 +290,7 @@ export default function Upload() {
         keyboardType="decimal-pad"
       />
 
-      {/* ── Category picker (new) ── */}
+      {/* ── Category ── */}
       <Text style={s.label}>Category</Text>
       <ScrollView
         horizontal
@@ -321,7 +315,7 @@ export default function Upload() {
         })}
       </ScrollView>
 
-      {/* Date ranges for rent */}
+      {/* ── Availability (rent only) ── */}
       {type === "rent" && (
         <View style={s.availabilitySection}>
           <Text style={s.label}>Availability Dates</Text>
@@ -362,7 +356,7 @@ export default function Upload() {
               value={
                 pickerMode === "start"
                   ? currentRange.start || new Date()
-                  : currentRange.end || new Date()
+                  : currentRange.end   || new Date()
               }
               mode="date"
               display={Platform.OS === "ios" ? "inline" : "default"}
@@ -380,13 +374,12 @@ export default function Upload() {
         </View>
       )}
 
-      {/* Submit */}
+      {/* ── Submit ── */}
       <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={s.submitText}>Upload Item</Text>
-        )}
+        {loading
+          ? <ActivityIndicator color="#fff" />
+          : <Text style={s.submitText}>Upload Item</Text>
+        }
       </TouchableOpacity>
     </ScrollView>
   );
@@ -409,25 +402,27 @@ const s = StyleSheet.create({
     fontSize: 13, fontWeight: "600", color: "#6b7280",
     marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5,
   },
+  required: { color: "#ef4444", textTransform: "none" },
+  optional: { color: "#9ca3af", fontWeight: "400", textTransform: "none", fontSize: 11 },
 
   // Images
-  imagesRow: { flexDirection: "row", marginBottom: 6 },
+  imagesRow:  { flexDirection: "row", marginBottom: 6 },
   addImageBtn: {
     width: 100, height: 110, borderRadius: 14,
     backgroundColor: "#e9e9e7", justifyContent: "center",
     alignItems: "center", marginRight: 10, gap: 6,
     borderWidth: 1.5, borderColor: "#d1d5db", borderStyle: "dashed",
   },
-  addImageIcon: { fontSize: 26 },
-  addImageText: { fontSize: 11, fontWeight: "600", color: "#6b7280" },
-  thumbWrap:    { position: "relative", marginRight: 10 },
-  thumb:        { width: 100, height: 110, borderRadius: 14, resizeMode: "cover" },
+  addImageIcon:     { fontSize: 26 },
+  addImageText:     { fontSize: 11, fontWeight: "600", color: "#6b7280" },
+  thumbWrap:        { position: "relative", marginRight: 10 },
+  thumb:            { width: 100, height: 110, borderRadius: 14, resizeMode: "cover" },
   primaryBadge: {
     position: "absolute", top: 6, left: 6,
     backgroundColor: "#1a1a1a", paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8,
   },
   primaryBadgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
-  thumbActions:     { position: "absolute", top: 6, right: 6, flexDirection: "column", gap: 4 },
+  thumbActions:     { position: "absolute", top: 6, right: 6 },
   thumbActionBtn: {
     backgroundColor: "rgba(255,255,255,0.9)", width: 26, height: 26,
     borderRadius: 13, justifyContent: "center", alignItems: "center",
@@ -443,7 +438,7 @@ const s = StyleSheet.create({
   },
   textArea: { height: 90, textAlignVertical: "top", paddingTop: 13 },
 
-  // Category chips (new)
+  // Category chips
   catChip: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", borderRadius: 20,
@@ -455,6 +450,7 @@ const s = StyleSheet.create({
   catChipLabel:       { fontSize: 13, fontWeight: "600", color: "#6b7280" },
   catChipLabelActive: { color: "#fff" },
 
+  // Availability
   availabilitySection: { marginBottom: 16 },
   rangeChip: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

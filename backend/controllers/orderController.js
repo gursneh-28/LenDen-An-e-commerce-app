@@ -4,7 +4,7 @@ const itemModel  = require("../models/itemModel");
 // POST /api/orders/create
 async function createOrder(req, res) {
   try {
-    const { itemId, type, rentStart, rentEnd } = req.body;
+    const { itemId, type, rentStart, rentEnd } = req.body;   // "type" not "orderType"
 
     const item = await itemModel.getItemById(itemId);
     if (!item) return res.status(404).json({ success: false, message: "Item not found" });
@@ -13,6 +13,7 @@ async function createOrder(req, res) {
 
     const orderData = {
       itemId,
+      itemName:        item.name || "",          // ← ADD THIS
       itemDescription: item.description,
       itemImage:       item.images?.[0] || item.image || null,
       itemPrice:       item.price,

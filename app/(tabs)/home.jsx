@@ -14,15 +14,15 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 const CATEGORIES = [
-  { key: "all",         label: "All",        icon: "🏠" },
-  { key: "sell",        label: "For Sale",   icon: "🏷️" },
-  { key: "rent",        label: "For Rent",   icon: "🔑" },
-  { key: "electronics", label: "Electronics",icon: "📱" },
-  { key: "books",       label: "Books",      icon: "📚" },
-  { key: "clothing",    label: "Clothing",   icon: "👗" },
-  { key: "furniture",   label: "Furniture",  icon: "🪑" },
-  { key: "sports",      label: "Sports",     icon: "⚽" },
-  { key: "other",       label: "Other",      icon: "📦" },
+  { key: "all",         label: "All",         icon: "🏠" },
+  { key: "sell",        label: "For Sale",    icon: "🏷️" },
+  { key: "rent",        label: "For Rent",    icon: "🔑" },
+  { key: "electronics", label: "Electronics", icon: "📱" },
+  { key: "books",       label: "Books",       icon: "📚" },
+  { key: "clothing",    label: "Clothing",    icon: "👗" },
+  { key: "furniture",   label: "Furniture",   icon: "🪑" },
+  { key: "sports",      label: "Sports",      icon: "⚽" },
+  { key: "other",       label: "Other",       icon: "📦" },
 ];
 
 function timeAgo(iso) {
@@ -52,13 +52,11 @@ export default function Home() {
       AsyncStorage.getItem("user").then((raw) => {
         if (raw) {
           const u = JSON.parse(raw);
-        
           const name =
             u.username ||
             u.name ||
             u.email?.split("@")[0] ||
             "there";
-        
           setUserName(name.split(" ")[0]);
         }
       });
@@ -103,6 +101,7 @@ export default function Home() {
       const lower = q.toLowerCase();
       out = out.filter(
         (i) =>
+          i.name?.toLowerCase().includes(lower) ||
           i.description?.toLowerCase().includes(lower) ||
           i.uploaderName?.toLowerCase().includes(lower)
       );
@@ -157,7 +156,7 @@ export default function Home() {
           </View>
         )}
 
-        {/* ── Improved card heart button ── */}
+        {/* Heart button */}
         <TouchableOpacity
           style={[styles.heartBtn, wishlisted && styles.heartBtnActive]}
           onPress={() => toggleWishlist(item._id)}
@@ -166,10 +165,11 @@ export default function Home() {
           <Ionicons
             name={wishlisted ? "heart" : "heart-outline"}
             size={16}
-            color={wishlisted ? "#fff" : "#fff"}
+            color="#fff"
           />
         </TouchableOpacity>
 
+        {/* Sale / Rent badge */}
         <View style={[styles.badge, item.type === "rent" ? styles.badgeRent : styles.badgeSell]}>
           <Text style={styles.badgeText}>
             {item.type === "rent" ? "Rent" : "Sale"}
@@ -177,8 +177,11 @@ export default function Home() {
         </View>
 
         <View style={styles.cardBody}>
+          {/* Product name — shown prominently */}
+          {!!item.name && (
+            <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+          )}
           <Text style={styles.cardPrice}>₹{item.price}</Text>
-          <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
           <Text style={styles.cardMeta}>{item.uploaderName} · {timeAgo(item.createdAt)}</Text>
         </View>
       </TouchableOpacity>
@@ -198,14 +201,14 @@ export default function Home() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.headerContainer}>
-        {/* ── Greeting row ── */}
+        {/* Greeting row */}
         <View style={styles.greetRow}>
           <View>
-            <Text style={styles.greeting}>Hey {userName ? userName : "there"}</Text>
+            <Text style={styles.greeting}>Hey {userName ? userName : "there"} 👋</Text>
             <Text style={styles.subGreeting}>Find something in your org</Text>
           </View>
 
-          {/* ── Improved wishlist pill button ── */}
+          {/* Wishlist pill */}
           <TouchableOpacity
             style={[styles.wishlistPill, showWishlist && styles.wishlistPillActive]}
             onPress={() => setShowWishlist((v) => !v)}
@@ -223,12 +226,12 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Search bar ── */}
+        {/* Search bar */}
         <View style={styles.searchRow}>
           <Ionicons name="search" size={18} color="#9ca3af" style={{ marginLeft: 12 }} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search items, sellers…"
+            placeholder="Search by name, seller…"
             placeholderTextColor="#9ca3af"
             value={search}
             onChangeText={handleSearch}
@@ -242,7 +245,7 @@ export default function Home() {
           )}
         </View>
 
-        {/* ── Category pills ── */}
+        {/* Category pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -265,7 +268,7 @@ export default function Home() {
           })}
         </ScrollView>
 
-        {/* ── Section header row — only in wishlist mode ── */}
+        {/* Wishlist mode header */}
         {showWishlist && (
           <View style={styles.sectionRow}>
             <View style={styles.sectionLeft}>
@@ -325,7 +328,6 @@ const styles = StyleSheet.create({
   greeting:    { fontSize: 20, fontWeight: "700", color: "#111" },
   subGreeting: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
 
-  // ── Improved wishlist pill ──
   wishlistPill: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 13, paddingVertical: 9,
@@ -338,14 +340,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#e11d48", borderColor: "#e11d48",
     shadowOpacity: 0.28,
   },
-  wishlistPillLabel: { fontSize: 13, fontWeight: "700", color: "#e11d48" },
+  wishlistPillLabel:       { fontSize: 13, fontWeight: "700", color: "#e11d48" },
   wishlistPillLabelActive: { color: "#fff" },
-  wishlistCount: {
-    marginLeft: 6, backgroundColor: "#e11d48",
-    borderRadius: 10, minWidth: 18, height: 18,
-    alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
-  },
-  wishlistCountText: { color: "#fff", fontSize: 10, fontWeight: "800" },
 
   searchRow: {
     flexDirection: "row", alignItems: "center",
@@ -385,11 +381,12 @@ const styles = StyleSheet.create({
   cardImage: { width: "100%", height: CARD_WIDTH * 1.1 },
   noImage:   { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   cardBody:  { padding: 10 },
-  cardPrice: { fontSize: 15, fontWeight: "700", color: "#111", marginBottom: 2 },
-  cardDesc:  { fontSize: 12, color: "#6b7280", lineHeight: 16, marginBottom: 4 },
-  cardMeta:  { fontSize: 11, color: "#9ca3af" },
 
-  // ── Improved card heart — shows filled red when active ──
+  cardName:  { fontSize: 13, fontWeight: "700", color: "#111", marginBottom: 2 },
+  cardPrice: { fontSize: 14, fontWeight: "700", color: "#e11d48", marginBottom: 2 },
+  cardDesc:  { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 4 },
+  cardMeta:  { fontSize: 10, color: "#9ca3af" },
+
   heartBtn: {
     position: "absolute", top: 8, right: 8,
     width: 32, height: 32, borderRadius: 16,

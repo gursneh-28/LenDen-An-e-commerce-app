@@ -1,190 +1,382 @@
-import React, { useState } from 'react';
-import { 
-  View, Text, StyleSheet, Image, ScrollView, Dimensions, 
-  TouchableOpacity, Linking, Platform, SafeAreaView, Modal, FlatList 
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect } from "react";
+import {
+  View, Text, Image, ScrollView, TouchableOpacity,
+  StyleSheet, Dimensions, StatusBar, Platform, Alert,
+  ActivityIndicator,
+} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { userAPI, orderAPI } from "../services/api";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function formatDate(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+}
+
+const CATEGORY_ICONS = {
+  electronics: "📱",
+  books:       "📚",
+  clothing:    "👗",
+  furniture:   "🪑",
+  sports:      "⚽",
+  other:       "📦",
+};
 
 export default function ItemDetail() {
-  const params = useLocalSearchParams();
   const router = useRouter();
-  const item = params.item ? JSON.parse(params.item) : null;
+  const params = useLocalSearchParams();
 
-  const [isViewerVisible, setIsViewerVisible] = useState(false);
-  const [startIndex, setStartIndex] = useState(0);
-
-  if (!item) {
+  // Parse item passed from home/profile
+  let item = null;
+  try {
+    item = JSON.parse(params.item);
+  } catch {
     return (
-      <SafeAreaView style={styles.center}>
-        <Text>Item not found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <View style={s.center}>
+        <Text style={{ color: "#6b7280" }}>Item not found.</Text>
+      </View>
     );
   }
 
-  const images = item.images?.length > 0 ? item.images : (item.image ? [item.image] : []);
+  const images = item.images?.length ? item.images : item.image ? [item.image] : [];
 
-  const handleContact = () => {
-    Linking.openURL(`mailto:${item.uploadedBy}`);
+  const [activeImg,  setActiveImg]  = useState(0);
+  const [wishlisted, setWishlisted] = useState(false);
+  const [ordering,   setOrdering]   = useState(false);
+
+  // Fetch real wishlist on mount so heart icon is accurate
+  useEffect(() => {
+    userAPI.getWishlist().then((res) => {
+      if (res.success) setWishlisted((res.data || []).includes(item._id));
+    }).catch(() => {});
+  }, []);
+
+  const handleWishlist = async () => {
+    setWishlisted((v) => !v);                          // optimistic
+    try {
+      const res = await userAPI.toggleWishlist(item._id);
+      if (res.success)
+        setWishlisted((res.wishlist || []).includes(item._id));  // sync truth
+    } catch {
+      setWishlisted((v) => !v);                        // revert on error
+    }
   };
 
-  const openViewer = (index) => {
-    setStartIndex(index);
-    setIsViewerVisible(true);
+  const handleOrder = async () => {
+    Alert.alert(
+      item.type === "rent" ? "Request to Rent" : "Request to Buy",
+      `Send a request for "${item.name || "this item"}" to ${item.uploaderName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send Request",
+          onPress: async () => {
+            try {
+              setOrdering(true);
+              await orderAPI.createOrder({
+                itemId: item._id,
+                type:   item.type,    // ← "type" not "orderType"
+              });
+              Alert.alert("Request sent! ✅", "The seller will confirm shortly.");
+            } catch (e) {
+              Alert.alert("Error", e.message);
+            } finally {
+              setOrdering(false);
+            }
+          },
+        },
+      ]
+    );
   };
+  
+  const categoryIcon = CATEGORY_ICONS[item.category] || "📦";
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#111" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Details</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <View style={s.screen}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      {/* ── Image carousel ── */}
+      <View style={s.imageWrap}>
         {images.length > 0 ? (
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.carousel}>
-            {images.map((imgUrl, i) => (
-              <TouchableOpacity key={i} activeOpacity={0.9} onPress={() => openViewer(i)}>
-                <Image source={{ uri: imgUrl }} style={styles.carouselImg} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        ) : (
-          <View style={[styles.carouselImg, styles.noImage]}>
-             <Text style={{ fontSize: 60 }}>📦</Text>
-          </View>
-        )}
-        
-        <View style={styles.content}>
-          <View style={styles.titleRow}>
-            <Text style={styles.titleText}>{item.type === 'rent' ? 'For Rent' : 'For Sale'}</Text>
-            <Text style={styles.priceText}>₹{item.price}</Text>
-          </View>
-          
-          {item.category && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{item.category.toUpperCase()}</Text>
-            </View>
-          )}
-
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.descText}>{item.description}</Text>
-          
-          <Text style={styles.sectionTitle}>Seller Information</Text>
-          <View style={styles.sellerCard}>
-             <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.uploaderName?.charAt(0).toUpperCase() || 'U'}</Text>
-             </View>
-             <View style={styles.sellerInfo}>
-                <Text style={styles.sellerName}>{item.uploaderName || 'Unknown User'}</Text>
-                <Text style={styles.sellerEmail}>{item.uploadedBy}</Text>
-             </View>
-          </View>
-          
-          {item.type === 'rent' && item.availability && item.availability.length > 0 && (
-            <View style={styles.availabilityBox}>
-              <Text style={styles.sectionTitle}>Availability Dates</Text>
-              {item.availability.map((r, i) => (
-                 <Text key={i} style={styles.dateText}>
-                   • {new Date(r.start).toLocaleDateString()} to {new Date(r.end).toLocaleDateString()}
-                 </Text>
-              ))}
-            </View>
-          )}
-
-        </View>
-      </ScrollView>
-      
-      <View style={styles.footer}>
-         <TouchableOpacity style={styles.contactBtn} onPress={handleContact}>
-            <Ionicons name="mail" size={20} color="#fff" />
-            <Text style={styles.contactBtnText}>Contact Seller</Text>
-         </TouchableOpacity>
-      </View>
-
-      {/* Full Screen Image Viewer Modal */}
-      <Modal visible={isViewerVisible} transparent={false} animationType="fade" onRequestClose={() => setIsViewerVisible(false)}>
-        <SafeAreaView style={styles.viewerContainer}>
-          <TouchableOpacity style={styles.viewerCloseBtn} onPress={() => setIsViewerVisible(false)}>
-            <Ionicons name="arrow-back" size={28} color="#fff" />
-          </TouchableOpacity>
-          <FlatList
-            data={images}
+          <ScrollView
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            initialScrollIndex={startIndex}
-            getItemLayout={(data, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
-            keyExtractor={(img, idx) => idx.toString()}
-            renderItem={({ item: img }) => (
-              <View style={styles.viewerSlide}>
-                <Image source={{ uri: img }} style={styles.viewerImage} />
-              </View>
-            )}
+            onMomentumScrollEnd={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              setActiveImg(idx);
+            }}
+          >
+            {images.map((uri, i) => (
+              <Image key={i} source={{ uri }} style={s.heroImage} resizeMode="cover" />
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={[s.heroImage, s.noImage]}>
+            <Text style={{ fontSize: 52 }}>📦</Text>
+          </View>
+        )}
+
+        {/* Image dots */}
+        {images.length > 1 && (
+          <View style={s.dots}>
+            {images.map((_, i) => (
+              <View
+                key={i}
+                style={[s.dot, i === activeImg && s.dotActive]}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Back button */}
+        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </TouchableOpacity>
+
+        {/* Wishlist button */}
+        <TouchableOpacity
+          style={[s.wishBtn, wishlisted && s.wishBtnActive]}
+          onPress={handleWishlist}
+        >
+          <Ionicons
+            name={wishlisted ? "heart" : "heart-outline"}
+            size={20}
+            color="#fff"
           />
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+        </TouchableOpacity>
+
+        {/* Type badge */}
+        <View style={[s.typeBadge, item.type === "rent" ? s.badgeRent : s.badgeSell]}>
+          <Text style={s.typeBadgeText}>
+            {item.type === "rent" ? "🔑 For Rent" : "🏷️ For Sale"}
+          </Text>
+        </View>
+      </View>
+
+      {/* ── Content ── */}
+      <ScrollView
+        style={s.content}
+        contentContainerStyle={s.contentInner}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Name + price row */}
+        <View style={s.titleRow}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            {!!item.name && (
+              <Text style={s.name}>{item.name}</Text>
+            )}
+            <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
+          </View>
+          {/* Category chip */}
+          <View style={s.catChip}>
+            <Text style={s.catChipIcon}>{categoryIcon}</Text>
+            <Text style={s.catChipLabel}>
+              {item.category
+                ? item.category.charAt(0).toUpperCase() + item.category.slice(1)
+                : "Other"}
+            </Text>
+          </View>
+        </View>
+
+        {/* ── Description ── */}
+        {!!item.description && (
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>Description</Text>
+            <Text style={s.descText}>{item.description}</Text>
+          </View>
+        )}
+
+        {/* ── Availability (rent only) ── */}
+        {item.type === "rent" && item.availability?.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionLabel}>Available Dates</Text>
+            {item.availability.map((range, i) => (
+              <View key={i} style={s.dateRange}>
+                <Ionicons name="calendar-outline" size={14} color="#6b7280" style={{ marginRight: 6 }} />
+                <Text style={s.dateRangeText}>
+                  {formatDate(range.start)} → {formatDate(range.end)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── Seller info ── */}
+        <View style={s.section}>
+          <Text style={s.sectionLabel}>Seller</Text>
+          <View style={s.sellerCard}>
+            <View style={s.sellerAvatar}>
+              <Text style={s.sellerAvatarText}>
+                {(item.uploaderName || "?")[0].toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.sellerName}>{item.uploaderName || "Unknown"}</Text>
+              {!!item.uploaderPhone && (
+                <Text style={s.sellerPhone}>{item.uploaderPhone}</Text>
+              )}
+              <Text style={s.sellerMeta}>Listed {timeAgo(item.createdAt)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Spacer so content clears the CTA button */}
+        <View style={{ height: 80 }} />
+      </ScrollView>
+
+      {/* ── CTA ── */}
+      <View style={s.ctaWrap}>
+        <View style={s.ctaInner}>
+          <View>
+            <Text style={s.ctaPrice}>₹{item.price?.toLocaleString()}</Text>
+            <Text style={s.ctaLabel}>
+              {item.type === "rent" ? "per period" : "one-time"}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={s.ctaBtn}
+            onPress={handleOrder}
+            disabled={ordering}
+          >
+            {ordering
+              ? <ActivityIndicator color="#fff" size="small" />
+              : (
+                <Text style={s.ctaBtnText}>
+                  {item.type === "rent" ? "Request to Rent" : "Request to Buy"}
+                </Text>
+              )
+            }
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  backBtn: { marginTop: 20, padding: 10, backgroundColor: '#1a1a1a', borderRadius: 8 },
-  backBtnText: { color: '#fff', fontWeight: '600' },
-  screen: { flex: 1, backgroundColor: '#fff' },
-  headerRow: { 
-    flexDirection: 'row', alignItems: 'center', 
-    justifyContent: 'space-between', paddingHorizontal: 16, 
-    paddingVertical: 12, borderBottomWidth: 1, 
-    borderBottomColor: '#f3f4f6', backgroundColor: '#fff' 
-  },
-  iconBtn: { padding: 8, backgroundColor: '#f3f4f6', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111' },
-  carousel: { height: SCREEN_WIDTH },
-  carouselImg: { width: SCREEN_WIDTH, height: SCREEN_WIDTH, resizeMode: 'cover' },
-  noImage: { backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 20 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  titleText: { fontSize: 24, fontWeight: '800', color: '#111', textTransform: 'capitalize' },
-  priceText: { fontSize: 24, fontWeight: '800', color: '#e11d48' },
-  badge: { alignSelf: 'flex-start', backgroundColor: '#eef2ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 20 },
-  badgeText: { fontSize: 12, fontWeight: '700', color: '#4f46e5' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111', marginTop: 12, marginBottom: 8 },
-  descText: { fontSize: 15, color: '#4b5563', lineHeight: 22, marginBottom: 20 },
-  sellerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f9fafb', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#f3f4f6' },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  sellerInfo: { flex: 1 },
-  sellerName: { fontSize: 16, fontWeight: '700', color: '#111', marginBottom: 2 },
-  sellerEmail: { fontSize: 14, color: '#6b7280' },
-  availabilityBox: { marginTop: 20, backgroundColor: '#fffbe8', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#fef08a' },
-  dateText: { fontSize: 14, color: '#854d0e', marginBottom: 4 },
-  footer: { 
-    position: 'absolute', bottom: 0, left: 0, right: 0, 
-    backgroundColor: '#fff', padding: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 16, 
-    borderTopWidth: 1, borderTopColor: '#f3f4f6' 
-  },
-  contactBtn: { 
-    backgroundColor: '#1a1a1a', borderRadius: 14, paddingVertical: 16, 
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 
-  },
-  contactBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+const IMAGE_HEIGHT = SCREEN_WIDTH * 1.05;
 
-  // Viewer Styles
-  viewerContainer: { flex: 1, backgroundColor: '#000' },
-  viewerCloseBtn: { 
-    position: 'absolute', top: Platform.OS === 'ios' ? 50 : 20, left: 16, 
-    zIndex: 10, padding: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 24 
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: "#f8f7f4" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  // ── Images ──
+  imageWrap: { width: SCREEN_WIDTH, height: IMAGE_HEIGHT, backgroundColor: "#e9e9e7" },
+  heroImage: { width: SCREEN_WIDTH, height: IMAGE_HEIGHT },
+  noImage:   { alignItems: "center", justifyContent: "center" },
+
+  dots: {
+    position: "absolute", bottom: 16,
+    flexDirection: "row", alignSelf: "center", gap: 6,
   },
-  viewerSlide: { width: SCREEN_WIDTH, height: '100%', justifyContent: 'center', alignItems: 'center' },
-  viewerImage: { width: SCREEN_WIDTH, height: '100%', resizeMode: 'contain' }
+  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.5)" },
+  dotActive: { backgroundColor: "#fff", width: 18 },
+
+  backBtn: {
+    position: "absolute",
+    top: Platform.OS === "android" ? 36 : 52,
+    left: 16,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    alignItems: "center", justifyContent: "center",
+  },
+  wishBtn: {
+    position: "absolute",
+    top: Platform.OS === "android" ? 36 : 52,
+    right: 16,
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    alignItems: "center", justifyContent: "center",
+  },
+  wishBtnActive: { backgroundColor: "#e11d48" },
+
+  typeBadge: {
+    position: "absolute", bottom: 16, left: 16,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
+  },
+  badgeSell:     { backgroundColor: "#6366f1" },
+  badgeRent:     { backgroundColor: "#f59e0b" },
+  typeBadgeText: { color: "#fff", fontWeight: "700", fontSize: 12 },
+
+  // ── Content ──
+  content:      { flex: 1 },
+  contentInner: { padding: 20 },
+
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  name:  { fontSize: 22, fontWeight: "700", color: "#1a1a1a", marginBottom: 4, lineHeight: 28 },
+  price: { fontSize: 26, fontWeight: "800", color: "#e11d48" },
+
+  catChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#fff", borderRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: "#e5e5e5",
+    alignSelf: "flex-start",
+  },
+  catChipIcon:  { fontSize: 14 },
+  catChipLabel: { fontSize: 12, fontWeight: "600", color: "#6b7280" },
+
+  section: {
+    backgroundColor: "#fff", borderRadius: 16,
+    padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: "#f0f0f0",
+  },
+  sectionLabel: {
+    fontSize: 11, fontWeight: "700", color: "#9ca3af",
+    textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10,
+  },
+  descText: { fontSize: 15, color: "#374151", lineHeight: 24 },
+
+  dateRange: {
+    flexDirection: "row", alignItems: "center",
+    paddingVertical: 6,
+    borderBottomWidth: 1, borderBottomColor: "#f3f4f6",
+  },
+  dateRangeText: { fontSize: 14, color: "#374151", fontWeight: "500" },
+
+  sellerCard:       { flexDirection: "row", alignItems: "center", gap: 12 },
+  sellerAvatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center", justifyContent: "center",
+  },
+  sellerAvatarText: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  sellerName:       { fontSize: 15, fontWeight: "700", color: "#1a1a1a" },
+  sellerPhone:      { fontSize: 13, color: "#6b7280", marginTop: 1 },
+  sellerMeta:       { fontSize: 12, color: "#9ca3af", marginTop: 2 },
+
+  // ── CTA bar ──
+  ctaWrap: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#fff",
+    borderTopWidth: 1, borderTopColor: "#f0f0f0",
+    paddingBottom: Platform.OS === "ios" ? 28 : 16,
+    paddingTop: 12, paddingHorizontal: 20,
+  },
+  ctaInner: { flexDirection: "row", alignItems: "center", gap: 16 },
+  ctaPrice: { fontSize: 20, fontWeight: "800", color: "#1a1a1a" },
+  ctaLabel: { fontSize: 11, color: "#9ca3af", marginTop: 1 },
+  ctaBtn: {
+    flex: 1, backgroundColor: "#1a1a1a",
+    borderRadius: 14, paddingVertical: 15,
+    alignItems: "center", justifyContent: "center",
+  },
+  ctaBtnText: { color: "#fff", fontWeight: "700", fontSize: 15, letterSpacing: 0.2 },
 });
