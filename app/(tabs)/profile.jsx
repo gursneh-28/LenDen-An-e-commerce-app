@@ -22,7 +22,6 @@ const ORDER_STATUS = {
   cancelled: { bg: "#fef2f2", text: "#b91c1c", label: "Cancelled" },
 };
 
-// ─── Shared mini-components ────────────────────────────────────────────────────
 function StatusPill({ status }) {
   const st = ORDER_STATUS[status] || ORDER_STATUS.pending;
   return (
@@ -79,8 +78,7 @@ function EmptyState({ icon, text, btnText, onPress }) {
   );
 }
 
-// ─── Wishlist Bottom Sheet Modal ───────────────────────────────────────────────
-// Shows all wishlisted items as a 2-col grid; tapping the heart removes from wishlist
+// ─── Wishlist Modal ────────────────────────────────────────────────────────────
 function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, router }) {
   const wishlisted = allItems.filter((i) => wishlistIds.includes(i._id));
 
@@ -101,7 +99,6 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
         </View>
       )}
 
-      {/* Heart — tap to remove from wishlist */}
       <TouchableOpacity
         style={wl.heartBtn}
         onPress={() => onToggle(item._id)}
@@ -115,30 +112,20 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
       </View>
 
       <View style={wl.cardBody}>
+        {/* Product name shown in wishlist */}
+        {!!item.name && <Text style={wl.name} numberOfLines={1}>{item.name}</Text>}
         <Text style={wl.price}>₹{item.price}</Text>
-        <Text style={wl.desc} numberOfLines={2}>{item.description}</Text>
+        {!!item.description && <Text style={wl.desc} numberOfLines={2}>{item.description}</Text>}
         <Text style={wl.meta}>{item.uploaderName}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      {/* Dim backdrop */}
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <TouchableOpacity style={wl.backdrop} activeOpacity={1} onPress={onClose} />
-
-      {/* Sheet */}
       <View style={wl.sheet}>
-        {/* Handle bar */}
         <View style={wl.handle} />
-
-        {/* Header */}
         <View style={wl.sheetHeader}>
           <View style={wl.sheetTitleRow}>
             <Ionicons name="heart" size={20} color="#e11d48" style={{ marginRight: 8 }} />
@@ -156,9 +143,7 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
           <View style={wl.empty}>
             <Ionicons name="heart-outline" size={56} color="#fda4af" />
             <Text style={wl.emptyTitle}>Nothing saved yet</Text>
-            <Text style={wl.emptySub}>
-              Tap ♡ on any listing in the home feed to save it here
-            </Text>
+            <Text style={wl.emptySub}>Tap ♡ on any listing in the home feed to save it here</Text>
             <TouchableOpacity style={wl.browseBtn} onPress={onClose}>
               <Text style={wl.browseBtnText}>Browse listings</Text>
             </TouchableOpacity>
@@ -179,25 +164,40 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
   );
 }
 
-// ─── Edit Item Modal ───────────────────────────────────────────────────────────
+// ─── Edit Item Modal — NOW HAS NAME FIELD ─────────────────────────────────────
 function EditItemModal({ item, visible, onClose, onSave }) {
+  const [name,        setName]        = useState("");
   const [description, setDescription] = useState("");
   const [price,       setPrice]       = useState("");
   const [saving,      setSaving]      = useState(false);
 
   React.useEffect(() => {
-    if (item) { setDescription(item.description || ""); setPrice(String(item.price || "")); }
+    if (item) {
+      setName(item.name || "");
+      setDescription(item.description || "");
+      setPrice(String(item.price || ""));
+    }
   }, [item]);
 
   const save = async () => {
-    if (!description.trim() || !price.trim())
-      return Alert.alert("Missing fields", "Fill in both fields.");
+    if (!name.trim())
+      return Alert.alert("Missing name", "Product name is required.");
+    if (!price.trim() || isNaN(Number(price)))
+      return Alert.alert("Invalid price", "Enter a valid price.");
     try {
       setSaving(true);
-      await itemAPI.updateItem(item._id, { description, price: Number(price) });
-      onSave(); onClose();
-    } catch (e) { Alert.alert("Error", e.message); }
-    finally { setSaving(false); }
+      await itemAPI.updateItem(item._id, {
+        name:        name.trim(),
+        description: description,   // can be empty — optional
+        price:       Number(price),
+      });
+      onSave();
+      onClose();
+    } catch (e) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -205,18 +205,54 @@ function EditItemModal({ item, visible, onClose, onSave }) {
       <View style={m.overlay}>
         <View style={m.sheet}>
           <Text style={m.title}>Edit listing</Text>
-          <Text style={m.label}>Description</Text>
-          <TextInput style={[m.input, m.ta]} value={description} onChangeText={setDescription}
-            multiline placeholder="Describe the item…" placeholderTextColor="#9ca3af" />
+
+          {/* Product Name — required */}
+          <Text style={m.label}>
+            Product Name <Text style={{ color: "#ef4444" }}>*</Text>
+          </Text>
+          <TextInput
+            style={m.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Sony Headphones"
+            placeholderTextColor="#9ca3af"
+            maxLength={80}
+          />
+
+          {/* Description — optional */}
+          <Text style={m.label}>
+            Description{" "}
+            <Text style={{ color: "#9ca3af", fontWeight: "400", textTransform: "none", fontSize: 11 }}>
+              (optional)
+            </Text>
+          </Text>
+          <TextInput
+            style={[m.input, m.ta]}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            placeholder="Condition, details…"
+            placeholderTextColor="#9ca3af"
+          />
+
           <Text style={m.label}>Price (₹)</Text>
-          <TextInput style={m.input} value={price} onChangeText={setPrice}
-            keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#9ca3af" />
+          <TextInput
+            style={m.input}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor="#9ca3af"
+          />
+
           <View style={m.btnRow}>
             <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
               <Text style={m.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={m.saveBtn} onPress={save} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.saveText}>Save</Text>}
+              {saving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={m.saveText}>Save</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -286,7 +322,13 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                   <TypePill type={item.type} />
                   <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
                 </View>
-                <Text style={s.desc} numberOfLines={2}>{item.description}</Text>
+                {/* Product name — shown prominently */}
+                {!!item.name && (
+                  <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>
+                )}
+                {!!item.description && (
+                  <Text style={s.desc} numberOfLines={2}>{item.description}</Text>
+                )}
                 <View style={s.actRow}>
                   <ActionBtn label="✏️ Edit"   variant="edit"   onPress={() => onEditItem(item)} />
                   <ActionBtn label="🗑 Delete" variant="delete" onPress={() => onDeleteItem(item._id, "item")} />
@@ -306,6 +348,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
+                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>From: {order.buyerName || order.buyerEmail}</Text>
@@ -357,6 +400,7 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
+                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>Seller: {order.sellerName || order.sellerEmail}</Text>
@@ -397,6 +441,7 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
+                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>{formatDate(order.createdAt)}</Text>
@@ -439,17 +484,17 @@ function RequestsTab({ myRequests, onEdit, onDelete, router }) {
 export default function Profile() {
   const router = useRouter();
 
-  const [user,           setUser]           = useState(null);
-  const [allItems,       setAllItems]       = useState([]); // all org items (for wishlist grid)
-  const [myItems,        setMyItems]        = useState([]);
-  const [myRequests,     setMyRequests]     = useState([]);
-  const [myOrders,       setMyOrders]       = useState([]);
-  const [incomingOrders, setIncoming]       = useState([]);
-  const [wishlistIds,    setWishlistIds]    = useState([]); // array of item._id strings
-  const [loading,        setLoading]        = useState(true);
-  const [refreshing,     setRefreshing]     = useState(false);
-  const [tab,            setTab]            = useState("selling");
-  const [showWishlist,   setShowWishlist]   = useState(false); // wishlist modal
+  const [user,           setUser]        = useState(null);
+  const [allItems,       setAllItems]    = useState([]);
+  const [myItems,        setMyItems]     = useState([]);
+  const [myRequests,     setMyRequests]  = useState([]);
+  const [myOrders,       setMyOrders]    = useState([]);
+  const [incomingOrders, setIncoming]    = useState([]);
+  const [wishlistIds,    setWishlistIds] = useState([]);
+  const [loading,        setLoading]     = useState(true);
+  const [refreshing,     setRefreshing]  = useState(false);
+  const [tab,            setTab]         = useState("selling");
+  const [showWishlist,   setShowWishlist]= useState(false);
 
   const [editingItem,     setEditingItem]     = useState(null);
   const [editItemVisible, setEditItemVisible] = useState(false);
@@ -458,30 +503,25 @@ export default function Profile() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [
-        u,
-        wishlistRes,
-        allItemsRes,
-        itemsRes,
-        reqsRes,
-        myOrdersRes,
-        sellingOrdersRes,
-      ] = await Promise.all([
-        getUser(),
-        userAPI.getWishlist(),
-        itemAPI.getItems(),          // all org items needed for wishlist grid
-        itemAPI.getMyItems(),
-        requestAPI.getMyRequests(),
-        orderAPI.getMyOrders(),
-        orderAPI.getSellingOrders(),
-      ]);
+      const [u, wishlistRes, allItemsRes, itemsRes, reqsRes, myOrdersRes, sellingOrdersRes] =
+        await Promise.all([
+          getUser(),
+          userAPI.getWishlist(),
+          itemAPI.getItems(),
+          itemAPI.getMyItems(),
+          requestAPI.getMyRequests(),
+          orderAPI.getMyOrders(),
+          orderAPI.getSellingOrders(),
+        ]);
 
       setUser(u);
-      if (wishlistRes.success)      setWishlistIds(wishlistRes.data || []);
+      if (wishlistRes.success) setWishlistIds(wishlistRes.data || []);
+
       const orgItems = Array.isArray(allItemsRes)
         ? allItemsRes
         : allItemsRes?.data || allItemsRes?.items || [];
       setAllItems(orgItems);
+
       if (itemsRes.success)         setMyItems(itemsRes.data);
       if (reqsRes.success)          setMyRequests(reqsRes.data);
       if (myOrdersRes.success)      setMyOrders(myOrdersRes.data);
@@ -496,16 +536,13 @@ export default function Profile() {
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
 
-  // Toggle wishlist from inside the modal
   const handleWishlistToggle = async (itemId) => {
     const isIn = wishlistIds.includes(itemId);
-    // Optimistic
     setWishlistIds((prev) => isIn ? prev.filter((x) => x !== itemId) : [...prev, itemId]);
     try {
       const res = await userAPI.toggleWishlist(itemId);
       if (res.success) setWishlistIds(res.wishlist || []);
-    } catch (e) {
-      // Revert
+    } catch {
       setWishlistIds((prev) => isIn ? [...prev, itemId] : prev.filter((x) => x !== itemId));
     }
   };
@@ -568,7 +605,7 @@ export default function Profile() {
           />
         }
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <View style={s.header}>
           <View style={s.coverStrip} />
           <View style={s.avatarRow}>
@@ -577,17 +614,10 @@ export default function Profile() {
                 {(user?.username || user?.email || "U")[0].toUpperCase()}
               </Text>
             </View>
-
-            {/* ── Header actions: improved heart pill + logout ── */}
             <View style={s.headerActions}>
-              {/* Wishlist heart pill button */}
-              <TouchableOpacity
-                onPress={() => setShowWishlist(true)}
-                style={s.simpleHeart}
-              >
+              <TouchableOpacity onPress={() => setShowWishlist(true)} style={s.simpleHeart}>
                 <Ionicons name="heart" size={22} color="#e11d48" />
               </TouchableOpacity>
-
               <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
                 <Text style={s.logoutBtnText}>Log out</Text>
               </TouchableOpacity>
@@ -598,13 +628,12 @@ export default function Profile() {
           <Text style={s.userEmail}>{user?.email}</Text>
           {user?.org && <Text style={s.userOrg}>{user.org}</Text>}
 
-          {/* ── Stats ── */}
           <View style={s.statsRow}>
             {[
-              { n: myItems.length,      l: "Listings"  },
-              { n: wishlistIds.length,  l: "Wishlist"  },
-              { n: myOrders.length,     l: "Orders"    },
-              { n: myRequests.length,   l: "Requests"  },
+              { n: myItems.length,     l: "Listings"  },
+              { n: wishlistIds.length, l: "Wishlist"  },
+              { n: myOrders.length,    l: "Orders"    },
+              { n: myRequests.length,  l: "Requests"  },
             ].map((st, i, arr) => (
               <React.Fragment key={st.l}>
                 <View style={s.stat}>
@@ -617,7 +646,7 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* ── Tabs ── */}
+        {/* Tabs */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsWrap}>
           <View style={s.tabs}>
             {TABS.map(({ key, label }) => (
@@ -632,9 +661,9 @@ export default function Profile() {
           </View>
         </ScrollView>
 
-        {/* ── Tab content ── */}
+        {/* Tab content */}
         <View style={s.content}>
-          {tab === "selling"  && (
+          {tab === "selling" && (
             <SellingTab
               myItems={myItems}
               incomingOrders={incomingOrders}
@@ -644,7 +673,7 @@ export default function Profile() {
               router={router}
             />
           )}
-          {tab === "buying"   && (
+          {tab === "buying" && (
             <BuyingTab myOrders={myOrders} onOrderAction={handleOrderAction} router={router} />
           )}
           {tab === "requests" && (
@@ -659,7 +688,6 @@ export default function Profile() {
         <View style={{ height: 48 }} />
       </ScrollView>
 
-      {/* ── Wishlist bottom sheet modal ── */}
       <WishlistModal
         visible={showWishlist}
         onClose={() => setShowWishlist(false)}
@@ -696,56 +724,23 @@ const s = StyleSheet.create({
 
   header:     { backgroundColor: "#1a1a1a", paddingBottom: 20 },
   coverStrip: { height: 52, backgroundColor: "#2a2a2a" },
-  avatarRow:  {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "flex-end", paddingHorizontal: 20,
-  },
+  avatarRow:  { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20 },
   avatar: {
     width: 68, height: 68, borderRadius: 34,
     backgroundColor: "#333", borderWidth: 3, borderColor: "#1a1a1a",
     justifyContent: "center", alignItems: "center", marginTop: -34,
   },
-  avatarText: { fontSize: 26, color: "#fff", fontWeight: "700" },
-
-  headerActions: {
-    flexDirection: "row", alignItems: "center",
-    gap: 8, paddingBottom: 6,
-  },
-
-  // ── Improved heart pill in header ──
-  heartPill: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 11, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1.5, borderColor: "#fda4af",
-    backgroundColor: "#fff1f2",
-    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18, shadowRadius: 5, elevation: 3,
-  },
-  heartPillLabel:     { fontSize: 12, fontWeight: "700", color: "#e11d48" },
-  heartPillBadge: {
-    marginLeft: 5, backgroundColor: "#e11d48",
-    borderRadius: 9, minWidth: 17, height: 17,
-    alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
-  },
-  heartPillBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
-
-  logoutBtn:     {
-    borderWidth: 0.5, borderColor: "#555", borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 7,
-  },
+  avatarText:    { fontSize: 26, color: "#fff", fontWeight: "700" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 6 },
+  simpleHeart:   { padding: 6, justifyContent: "center", alignItems: "center" },
+  logoutBtn:     { borderWidth: 0.5, borderColor: "#555", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
   logoutBtnText: { color: "#9ca3af", fontSize: 12, fontWeight: "600" },
 
   userName:  { fontSize: 20, fontWeight: "700", color: "#fff", paddingHorizontal: 20, marginTop: 10 },
-  userEmail: {
-    fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
+  userEmail: { fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
   userOrg:   { fontSize: 11, color: "#666", paddingHorizontal: 20, marginTop: 2 },
 
-  statsRow: {
-    flexDirection: "row", marginTop: 16,
-    borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14,
-  },
+  statsRow:  { flexDirection: "row", marginTop: 16, borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14 },
   stat:      { flex: 1, alignItems: "center" },
   statNum:   { fontSize: 18, fontWeight: "700", color: "#fff" },
   statLabel: { fontSize: 9, color: "#666", marginTop: 2 },
@@ -759,31 +754,19 @@ const s = StyleSheet.create({
   tabTextActive: { color: "#1a1a1a" },
 
   content:  { padding: 16 },
-  secLabel: {
-    fontSize: 10, fontWeight: "700", color: "#9ca3af",
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
-  },
+  secLabel: { fontSize: 10, fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
 
-  card:           {
-    flexDirection: "row", backgroundColor: "#fff", borderRadius: 14,
-    marginBottom: 10, overflow: "hidden",
-    borderWidth: 0.5, borderColor: "#ebebeb",
-  },
+  card:           { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, marginBottom: 10, overflow: "hidden", borderWidth: 0.5, borderColor: "#ebebeb" },
   cardImg:        { width: 84, height: 96, resizeMode: "cover" },
   imgPlaceholder: { backgroundColor: "#e9e9e7" },
   cardBody:       { flex: 1, padding: 10 },
-  cardTop:        {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", marginBottom: 4,
-  },
-  cardMeta:       {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", marginTop: 3, marginBottom: 3,
-  },
-  price:    { fontSize: 15, fontWeight: "700", color: "#1a1a1a" },
-  desc:     { fontSize: 12, color: "#6b7280", lineHeight: 17, marginBottom: 6 },
-  metaText: { fontSize: 10, color: "#9ca3af" },
-  actRow:   { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  cardTop:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  cardMeta:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 3, marginBottom: 3 },
+  cardName:       { fontSize: 13, fontWeight: "700", color: "#1a1a1a", marginBottom: 2 },  // ← product name
+  price:          { fontSize: 15, fontWeight: "700", color: "#1a1a1a" },
+  desc:           { fontSize: 12, color: "#6b7280", lineHeight: 17, marginBottom: 6 },
+  metaText:       { fontSize: 10, color: "#9ca3af" },
+  actRow:         { flexDirection: "row", gap: 6, flexWrap: "wrap" },
 
   pill:         { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   pillSell:     { backgroundColor: "#f0fdf4" },
@@ -794,141 +777,63 @@ const s = StyleSheet.create({
 
   statusPill:     { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   statusPillText: { fontSize: 9, fontWeight: "800" },
+  actionBtn:      { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  actionBtnText:  { fontSize: 11, fontWeight: "700" },
 
-  actionBtn:     { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  actionBtnText: { fontSize: 11, fontWeight: "700" },
-
-  reqCard: {
-    backgroundColor: "#fff", borderRadius: 14, padding: 12,
-    marginBottom: 10, borderWidth: 0.5, borderColor: "#ebebeb",
-  },
-  reqTop:   {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "flex-start", marginBottom: 3, gap: 8,
-  },
+  reqCard:  { backgroundColor: "#fff", borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 0.5, borderColor: "#ebebeb" },
+  reqTop:   { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3, gap: 8 },
   reqWork:  { fontSize: 13, fontWeight: "600", color: "#1a1a1a", flex: 1, lineHeight: 18 },
   reqPrice: { fontSize: 14, fontWeight: "700", color: "#16a34a", flexShrink: 0 },
 
   empty:        { alignItems: "center", paddingVertical: 44, gap: 8 },
   emptyIcon:    { fontSize: 38 },
   emptyText:    { fontSize: 14, fontWeight: "600", color: "#6b7280" },
-  emptyBtn:     {
-    backgroundColor: "#1a1a1a", borderRadius: 20,
-    paddingHorizontal: 20, paddingVertical: 10, marginTop: 4,
-  },
+  emptyBtn:     { backgroundColor: "#1a1a1a", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10, marginTop: 4 },
   emptyBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 });
 
-// ── Wishlist modal styles ──────────────────────────────────────────────────────
 const wl = StyleSheet.create({
-  backdrop: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.48)",
-  },
-  sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    maxHeight: "88%",
-    paddingBottom: Platform.OS === "ios" ? 34 : 16,
-  },
-  handle: {
-    width: 38, height: 4, borderRadius: 2,
-    backgroundColor: "#e5e7eb",
-    alignSelf: "center", marginTop: 10, marginBottom: 4,
-  },
-  sheetHeader: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: "#f3f4f6",
-  },
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.48)" },
+  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "88%", paddingBottom: Platform.OS === "ios" ? 34 : 16 },
+  handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: "#e5e7eb", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
   sheetTitleRow: { flexDirection: "row", alignItems: "center" },
   sheetTitle:    { fontSize: 18, fontWeight: "700", color: "#111" },
-  countBadge: {
-    marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10,
-    minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6,
-  },
-  countBadgeText: { fontSize: 12, fontWeight: "800", color: "#e11d48" },
-  closeBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "#f3f4f6",
-    alignItems: "center", justifyContent: "center",
-  },
-
-  listContent: { padding: 12 },
-  row:         { justifyContent: "space-between", marginBottom: 12 },
-
-  card: {
-    width: CARD_W, backgroundColor: "#fff", borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
-  },
-  cardImg: { width: "100%", height: CARD_W * 1.05 },
-  noImg:   { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
-  cardBody: { padding: 9 },
-  price:    { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2 },
-  desc:     { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 3 },
-  meta:     { fontSize: 10, color: "#9ca3af" },
-
-  // ── Improved card heart in wishlist modal — solid red, glowing ──
-  heartBtn: {
-    position: "absolute", top: 8, right: 8,
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: "#e11d48",
-    alignItems: "center", justifyContent: "center",
-    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.45, shadowRadius: 5, elevation: 5,
-  },
-
-  typeBadge:    { position: "absolute", top: 8, left: 8, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeSell:    { backgroundColor: "#6366f1" },
-  badgeRent:    { backgroundColor: "#f59e0b" },
-  typeBadgeText:{ color: "#fff", fontSize: 9, fontWeight: "700" },
-
-  empty: {
-    alignItems: "center", paddingVertical: 52, paddingHorizontal: 40, gap: 10,
-  },
-  emptyTitle:  { fontSize: 18, fontWeight: "700", color: "#374151" },
-  emptySub:    { fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 19 },
-  browseBtn:   {
-    marginTop: 8, backgroundColor: "#1a1a1a",
-    borderRadius: 22, paddingHorizontal: 24, paddingVertical: 11,
-  },
+  countBadge:    { marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10, minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  countBadgeText:{ fontSize: 12, fontWeight: "800", color: "#e11d48" },
+  closeBtn:      { width: 34, height: 34, borderRadius: 17, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  listContent:   { padding: 12 },
+  row:           { justifyContent: "space-between", marginBottom: 12 },
+  card:          { width: CARD_W, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
+  cardImg:       { width: "100%", height: CARD_W * 1.05 },
+  noImg:         { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
+  cardBody:      { padding: 9 },
+  name:          { fontSize: 12, fontWeight: "700", color: "#111", marginBottom: 1 },  // ← name in wishlist
+  price:         { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2 },
+  desc:          { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 3 },
+  meta:          { fontSize: 10, color: "#9ca3af" },
+  heartBtn:      { position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: "#e11d48", alignItems: "center", justifyContent: "center", shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.45, shadowRadius: 5, elevation: 5 },
+  typeBadge:     { position: "absolute", top: 8, left: 8, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
+  badgeSell:     { backgroundColor: "#6366f1" },
+  badgeRent:     { backgroundColor: "#f59e0b" },
+  typeBadgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  empty:         { alignItems: "center", paddingVertical: 52, paddingHorizontal: 40, gap: 10 },
+  emptyTitle:    { fontSize: 18, fontWeight: "700", color: "#374151" },
+  emptySub:      { fontSize: 13, color: "#9ca3af", textAlign: "center", lineHeight: 19 },
+  browseBtn:     { marginTop: 8, backgroundColor: "#1a1a1a", borderRadius: 22, paddingHorizontal: 24, paddingVertical: 11 },
   browseBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 });
 
-// ── Edit modal styles ─────────────────────────────────────────────────────────
 const m = StyleSheet.create({
-  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet:      {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 44,
-  },
-  title:      { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 20 },
-  label:      {
-    fontSize: 11, fontWeight: "700", color: "#6b7280",
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6,
-  },
-  input:      {
-    backgroundColor: "#f8f7f4", borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, color: "#1a1a1a", marginBottom: 16,
-    borderWidth: 1, borderColor: "#e5e5e5",
-  },
-  ta:         { height: 80, textAlignVertical: "top" },
-  btnRow:     { flexDirection: "row", gap: 12, marginTop: 4 },
-  cancelBtn:  {
-    flex: 1, borderWidth: 1, borderColor: "#e5e5e5",
-    borderRadius: 12, paddingVertical: 14, alignItems: "center",
-  },
-  simpleHeart: {
-  padding: 6,
-  justifyContent: "center",
-  alignItems: "center", 
-  },
-  cancelText: { fontWeight: "600", color: "#6b7280" },
-  saveBtn:    { flex: 1, backgroundColor: "#1a1a1a", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
-  saveText:   { fontWeight: "700", color: "#fff" },
+  overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet:     { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
+  title:     { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 20 },
+  label:     { fontSize: 11, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
+  input:     { backgroundColor: "#f8f7f4", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1a1a1a", marginBottom: 16, borderWidth: 1, borderColor: "#e5e5e5" },
+  ta:        { height: 80, textAlignVertical: "top" },
+  btnRow:    { flexDirection: "row", gap: 12, marginTop: 4 },
+  cancelBtn: { flex: 1, borderWidth: 1, borderColor: "#e5e5e5", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  cancelText:{ fontWeight: "600", color: "#6b7280" },
+  saveBtn:   { flex: 1, backgroundColor: "#1a1a1a", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
+  saveText:  { fontWeight: "700", color: "#fff" },
 });

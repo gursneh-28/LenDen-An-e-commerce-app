@@ -1,23 +1,25 @@
 const cloudinary = require("../config/cloudinary");
-const itemModel = require("../models/itemModel");
-const fs = require("fs");
+const itemModel  = require("../models/itemModel");
+const fs         = require("fs");
 
-// SINGLE uploadItem function (with category support)
 async function uploadItem(req, res) {
   try {
-    const { type, description, price, availability, category } = req.body;
+    const { type, name, description, price, availability, category } = req.body;
 
-    // Support both single file (req.file) and multiple files (req.files)
     const files = req.files || (req.file ? [req.file] : []);
 
     if (files.length === 0) {
       return res.status(400).json({ success: false, message: "At least one image is required" });
     }
 
-    // Upload all images to Cloudinary in parallel
+    if (!name || !name.trim()) {
+      files.forEach((f) => fs.unlink(f.path, () => {}));
+      return res.status(400).json({ success: false, message: "Product name is required" });
+    }
+
     const uploadPromises = files.map((file) =>
       cloudinary.uploader.upload(file.path).then((result) => {
-        fs.unlink(file.path, () => {}); // delete temp file
+        fs.unlink(file.path, () => {});
         return result.secure_url;
       })
     );
@@ -26,16 +28,17 @@ async function uploadItem(req, res) {
 
     const itemData = {
       type,
-      description,
-      price: Number(price),
-      images: imageUrls,          // array of image URLs
-      image: imageUrls[0],        // keep for backward compatibility
-      category: category || "other",  // ← ADD category here with default
-      availability: type === "rent" ? JSON.parse(availability || "[]") : [],
-      uploadedBy: req.user.email,
-      uploaderName: req.user.name,
+      name:          name.trim(),         // ← NEW required field
+      description:   description || "",   // optional
+      price:         Number(price),
+      images:        imageUrls,
+      image:         imageUrls[0],
+      category:      category || "other",
+      availability:  type === "rent" ? JSON.parse(availability || "[]") : [],
+      uploadedBy:    req.user.email,
+      uploaderName:  req.user.name,
       uploaderPhone: req.user.phone || null,
-      org: req.user.org,
+      org:           req.user.org,
     };
 
     const result = await itemModel.createItem(itemData);
@@ -43,10 +46,9 @@ async function uploadItem(req, res) {
     res.status(201).json({
       success: true,
       message: "Item uploaded successfully",
-      itemId: result.insertedId,
+      itemId:  result.insertedId,
     });
   } catch (error) {
-    // Clean up any temp files on error
     const files = req.files || (req.file ? [req.file] : []);
     files.forEach((f) => fs.unlink(f.path, () => {}));
     res.status(500).json({ success: false, message: error.message });
@@ -71,25 +73,23 @@ async function getMyItems(req, res) {
   }
 }
 
-// ADD the missing updateItem function
 async function updateItem(req, res) {
   try {
     const { id } = req.params;
-    const { description, price, category } = req.body;
+    const { name, description, price, category } = req.body;
 
     const item = await itemModel.getItemById(id);
-    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+    if (!item)
+      return res.status(404).json({ success: false, message: "Item not found" });
 
-    if (item.uploadedBy !== req.user.email) {
+    if (item.uploadedBy !== req.user.email)
       return res.status(403).json({ success: false, message: "Not authorised" });
-    }
 
-    const updateFields = {
-      description,
-      price: Number(price),
-    };
-    
-    if (category) updateFields.category = category;
+    const updateFields = { price: Number(price) };
+
+    if (name && name.trim())       updateFields.name        = name.trim(); // ← NEW
+    if (description !== undefined) updateFields.description = description; // can be ""
+    if (category)                  updateFields.category    = category;
 
     await itemModel.updateItem(id, updateFields);
     res.json({ success: true, message: "Item updated" });
@@ -103,11 +103,11 @@ async function deleteItem(req, res) {
     const { id } = req.params;
 
     const item = await itemModel.getItemById(id);
-    if (!item) return res.status(404).json({ success: false, message: "Item not found" });
+    if (!item)
+      return res.status(404).json({ success: false, message: "Item not found" });
 
-    if (item.uploadedBy !== req.user.email) {
+    if (item.uploadedBy !== req.user.email)
       return res.status(403).json({ success: false, message: "Not authorised" });
-    }
 
     await itemModel.deleteItem(id);
     res.json({ success: true, message: "Item deleted" });
@@ -116,5 +116,4 @@ async function deleteItem(req, res) {
   }
 }
 
-// Export all functions (only ONE uploadItem)
 module.exports = { uploadItem, getItems, getMyItems, updateItem, deleteItem };

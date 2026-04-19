@@ -9,20 +9,21 @@ async function getCollection() {
 
 async function createItem(itemData) {
   const collection = await getCollection();
-  
+
   const item = {
     ...itemData,
-    category: itemData.category || "other",
+    name:      itemData.name || "",        // ← NEW
+    category:  itemData.category || "other",
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-  
+
   return await collection.insertOne(item);
 }
 
 async function getAllItems(org) {
   const collection = await getCollection();
-  return await collection.find({ org: org }).sort({ createdAt: -1 }).toArray();
+  return await collection.find({ org }).sort({ createdAt: -1 }).toArray();
 }
 
 async function getItemsByEmail(email) {
@@ -50,17 +51,22 @@ async function deleteItem(id) {
 
 async function getItemsByCategory(org, category) {
   const collection = await getCollection();
-  return await collection.find({ org: org, category: category }).sort({ createdAt: -1 }).toArray();
+  return await collection
+    .find({ org, category })
+    .sort({ createdAt: -1 })
+    .toArray();
 }
 
+// name added to search — searching by product name now works
 async function searchItems(org, searchTerm) {
   const collection = await getCollection();
   return await collection.find({
-    org: org,
+    org,
     $or: [
-      { description: { $regex: searchTerm, $options: "i" } },
-      { uploaderName: { $regex: searchTerm, $options: "i" } }
-    ]
+      { name:         { $regex: searchTerm, $options: "i" } }, // ← NEW
+      { description:  { $regex: searchTerm, $options: "i" } },
+      { uploaderName: { $regex: searchTerm, $options: "i" } },
+    ],
   }).sort({ createdAt: -1 }).toArray();
 }
 
