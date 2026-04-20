@@ -42,30 +42,35 @@ async function getWishlist(userId) {
         { _id: typeof userId === 'string' ? new ObjectId(userId) : userId },
         { projection: { wishlist: 1 } }
     );
-    return user?.wishlist || [];
+    return (user?.wishlist || []).map(id => String(id));
 }
 
 async function toggleWishlist(userId, itemId) {
     const collection = await getCollection();
-    const user = await collection.findOne({ _id: typeof userId === 'string' ? new ObjectId(userId) : userId });
+    const userObjectId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+    const user = await collection.findOne({ _id: userObjectId });
     
     if (!user) throw new Error("User not found");
     
-    const wishlist = user.wishlist || [];
-    const isWishlisted = wishlist.includes(itemId);
+    // Normalize all wishlist IDs to strings for consistent comparison
+    const wishlist = (user.wishlist || []).map(id => String(id));
+    const strItemId = String(itemId);
+    const isWishlisted = wishlist.includes(strItemId);
     
     if (isWishlisted) {
+        // Remove — pull all variants (string and ObjectId)
         await collection.updateOne(
-            { _id: typeof userId === 'string' ? new ObjectId(userId) : userId },
-            { $pull: { wishlist: itemId } }
+            { _id: userObjectId },
+            { $pullAll: { wishlist: [strItemId] } }
         );
-        return { action: "removed", wishlist: wishlist.filter(id => id !== itemId) };
+        return { action: "removed", wishlist: wishlist.filter(id => id !== strItemId) };
     } else {
+        // Add as plain string
         await collection.updateOne(
-            { _id: typeof userId === 'string' ? new ObjectId(userId) : userId },
-            { $addToSet: { wishlist: itemId } }
+            { _id: userObjectId },
+            { $addToSet: { wishlist: strItemId } }
         );
-        return { action: "added", wishlist: [...wishlist, itemId] };
+        return { action: "added", wishlist: [...wishlist, strItemId] };
     }
 }
 

@@ -31,6 +31,7 @@ app.use("/api/items",    require("./routes/itemRoutes"));
 app.use("/api/requests", require("./routes/requestRoutes"));
 app.use("/api/orders",   require("./routes/orderRoutes"));
 app.use("/api/chat",     require("./routes/chatRoutes"));
+app.use("/api/user",     require("./routes/userRoutes")); // wishlist
 
 app.get("/", (req, res) => res.json({ message: "LenDen backend running" }));
 
