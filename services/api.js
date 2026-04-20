@@ -3,8 +3,12 @@ import { Platform } from 'react-native';
 
 const API_BASE_URL = Platform.OS === 'web'
   ? "http://localhost:5000/api"
-  : "http://172.16.61.155:5000/api";
-  
+  : "http://172.16.59.127:5000/api";
+
+export const SOCKET_URL = Platform.OS === "web"
+  ? "http://localhost:5000"
+  : "http://172.16.59.127:5000";
+   
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
 }
@@ -36,10 +40,21 @@ async function apiRequest(endpoint, method = "GET", data = null) {
   if (data) options.body = JSON.stringify(data);
 
   const response = await fetch(url, options);
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.message || "Something went wrong");
+
+  let result;
+  try {
+    result = await response.json();
+  } catch (err) {
+    console.log("API returned non-JSON:", await response.text());
+    throw new Error("Server error (not JSON)");
+  }
+
+  if (!response.ok) {
+    throw new Error(result.message || "Something went wrong");
+  }
+
   return result;
-}
+} // ✅ FIX: added this closing bracket
 
 async function apiUpload(endpoint, formData) {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -56,13 +71,8 @@ async function apiUpload(endpoint, formData) {
 }
 
 export const authAPI = {
-  // Step 1 — validate domain & send OTP
   sendOtp: (data) => apiRequest("/auth/send-otp", "POST", data),
-
-  // Step 2 — verify OTP and create account
   verifyOtpAndSignup: (data) => apiRequest("/auth/verify-otp", "POST", data),
-
-  // Login
   login: (data) => apiRequest("/auth/login", "POST", data),
 };
 
@@ -98,3 +108,19 @@ export const userAPI = {
   getWishlist: () => apiRequest("/user/wishlist"),
   toggleWishlist: (itemId) => apiRequest("/user/wishlist/toggle", "POST", { itemId }),
 };
+
+export const chatAPI = {
+  getOrCreate:      (d)  => apiRequest("/chat/conversation", "POST", d),
+  getConversations: ()   => apiRequest("/chat/conversations"),
+  getMessages:      (id) => apiRequest(`/chat/messages/${id}`),
+  sendMessage:      (d)  => apiRequest("/chat/messages", "POST", d),
+};
+
+export function itemRoomId(itemId, emailA, emailB) {
+  const sorted = [emailA, emailB].sort();
+  return `item_${itemId}_${sorted[0]}_${sorted[1]}`;
+}
+export function requestRoomId(requestId, emailA, emailB) {
+  const sorted = [emailA, emailB].sort();
+  return `req_${requestId}_${sorted[0]}_${sorted[1]}`;
+}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl,
@@ -26,12 +26,37 @@ const CATEGORIES = [
 ];
 
 function timeAgo(iso) {
+  if (!iso) return "";
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+// ✅ FIX: Pure function outside component — no stale closure issues
+function applyFilters(list, q, cat) {
+  let out = [...list];
+  if (cat !== "all") {
+    if (cat === "sell" || cat === "rent") {
+      out = out.filter((i) => i.type === cat);
+    } else {
+      out = out.filter(
+        (i) => i.category?.toLowerCase() === cat.toLowerCase()
+      );
+    }
+  }
+  if (q.trim()) {
+    const lower = q.toLowerCase();
+    out = out.filter(
+      (i) =>
+        i.name?.toLowerCase().includes(lower) ||
+        i.description?.toLowerCase().includes(lower) ||
+        i.uploaderName?.toLowerCase().includes(lower)
+    );
+  }
+  return out;
 }
 
 export default function Home() {
@@ -47,19 +72,27 @@ export default function Home() {
   const [showWishlist,   setShowWishlist]   = useState(false);
   const [userName,       setUserName]       = useState("");
 
+  // ✅ FIX: Refs to avoid stale closures inside async callbacks
+  const searchRef   = useRef("");
+  const categoryRef = useRef("all");
+
   useFocusEffect(
     useCallback(() => {
+      setShowWishlist(false);
+
       AsyncStorage.getItem("user").then((raw) => {
         if (raw) {
-          const u = JSON.parse(raw);
-          const name =
-            u.username ||
-            u.name ||
-            u.email?.split("@")[0] ||
-            "there";
-          setUserName(name.split(" ")[0]);
+          try {
+            const u = JSON.parse(raw);
+            const name =
+              u.username || u.name || u.email?.split("@")[0] || "there";
+            setUserName(name.split(" ")[0]);
+          } catch {
+            setUserName("there");
+          }
         }
       });
+
       fetchItems();
       fetchWishlist();
     }, [])
@@ -68,7 +101,10 @@ export default function Home() {
   const fetchWishlist = async () => {
     try {
       const res = await userAPI.getWishlist();
-      if (res.success) setWishlist(res.data);
+      if (res.success) {
+        // ✅ FIX: Normalize all IDs to strings
+        setWishlist((res.data || []).map((id) => String(id)));
+      }
     } catch (e) {
       console.log("wishlist fetch error", e);
     }
@@ -79,7 +115,8 @@ export default function Home() {
       const data = await itemAPI.getItems();
       const list = Array.isArray(data) ? data : data.data || data.items || [];
       setItems(list);
-      applyFilters(list, search, activeCategory);
+      // ✅ FIX: Use refs so we always have fresh filter values
+      setFiltered(applyFilters(list, searchRef.current, categoryRef.current));
     } catch (e) {
       console.log("fetch error", e);
     } finally {
@@ -88,68 +125,70 @@ export default function Home() {
     }
   };
 
-  const applyFilters = (list, q, cat) => {
-    let out = [...list];
-    if (cat !== "all") {
-      if (cat === "sell" || cat === "rent") {
-        out = out.filter((i) => i.type === cat);
-      } else {
-        out = out.filter((i) => i.category?.toLowerCase() === cat.toLowerCase());
-      }
-    }
-    if (q.trim()) {
-      const lower = q.toLowerCase();
-      out = out.filter(
-        (i) =>
-          i.name?.toLowerCase().includes(lower) ||
-          i.description?.toLowerCase().includes(lower) ||
-          i.uploaderName?.toLowerCase().includes(lower)
-      );
-    }
-    setFiltered(out);
-  };
-
   const handleSearch = (text) => {
+    searchRef.current = text;
     setSearch(text);
-    applyFilters(items, text, activeCategory);
+    setFiltered(applyFilters(items, text, categoryRef.current));
   };
 
   const handleCategory = (key) => {
+    categoryRef.current = key;
     setActiveCategory(key);
-    applyFilters(items, search, key);
+    setFiltered(applyFilters(items, searchRef.current, key));
   };
 
   const toggleWishlist = async (id) => {
-    const isWishlisted = wishlist.includes(id);
+    const strId = String(id); // ✅ FIX: always compare as strings
+    const isWishlisted = wishlist.includes(strId);
+
+    // Optimistic update
     setWishlist((prev) =>
-      isWishlisted ? prev.filter((x) => x !== id) : [...prev, id]
+      isWishlisted ? prev.filter((x) => x !== strId) : [...prev, strId]
     );
+
     try {
-      const res = await userAPI.toggleWishlist(id);
-      if (res.success) setWishlist(res.wishlist);
+      const res = await userAPI.toggleWishlist(strId);
+      if (res.success && res.wishlist) {
+        setWishlist(res.wishlist.map((x) => String(x)));
+      }
     } catch (e) {
       console.log("wishlist toggle error", e);
+      // Rollback on failure
       setWishlist((prev) =>
-        isWishlisted ? [...prev, id] : prev.filter((x) => x !== id)
+        isWishlisted ? [...prev, strId] : prev.filter((x) => x !== strId)
       );
     }
   };
 
-  const wishlistItems = items.filter((i) => wishlist.includes(i._id));
+  // ✅ FIX: Route to "itemDetail" (camelCase) — matches your actual file app/itemDetail.jsx
+  const openItem = (item) => {
+    try {
+      router.push({
+        pathname: "/itemDetail",
+        params: { item: JSON.stringify(item) },
+      });
+    } catch (e) {
+      console.log("navigation error", e);
+    }
+  };
+
+  const wishlistItems = items.filter((i) => wishlist.includes(String(i._id)));
   const displayList   = showWishlist ? wishlistItems : filtered;
 
   const renderCard = ({ item }) => {
-    const wishlisted = wishlist.includes(item._id);
+    const wishlisted = wishlist.includes(String(item._id));
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.88}
-        onPress={() =>
-          router.push({ pathname: "/item-detail", params: { item: JSON.stringify(item) } })
-        }
+        onPress={() => openItem(item)}
       >
         {item.image ? (
-          <Image source={{ uri: item.image }} style={styles.cardImage} />
+          <Image
+            source={{ uri: item.image }}
+            style={styles.cardImage}
+            onError={(e) => console.log("image load error", e.nativeEvent.error)}
+          />
         ) : (
           <View style={[styles.cardImage, styles.noImage]}>
             <Text style={{ fontSize: 32 }}>📦</Text>
@@ -177,12 +216,13 @@ export default function Home() {
         </View>
 
         <View style={styles.cardBody}>
-          {/* Product name — shown prominently */}
           {!!item.name && (
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
           )}
           <Text style={styles.cardPrice}>₹{item.price}</Text>
-          <Text style={styles.cardMeta}>{item.uploaderName} · {timeAgo(item.createdAt)}</Text>
+          <Text style={styles.cardMeta} numberOfLines={1}>
+            {item.uploaderName} · {timeAgo(item.createdAt)}
+          </Text>
         </View>
       </TouchableOpacity>
     );
@@ -204,7 +244,7 @@ export default function Home() {
         {/* Greeting row */}
         <View style={styles.greetRow}>
           <View>
-            <Text style={styles.greeting}>Hey {userName ? userName : "there"} 👋</Text>
+            <Text style={styles.greeting}>Hey {userName || "there"} 👋</Text>
             <Text style={styles.subGreeting}>Find something in your org</Text>
           </View>
 
@@ -261,7 +301,9 @@ export default function Home() {
                 onPress={() => handleCategory(cat.key)}
               >
                 <Text style={styles.catIcon}>{cat.icon}</Text>
-                <Text style={[styles.catLabel, active && styles.catLabelActive]}>{cat.label}</Text>
+                <Text style={[styles.catLabel, active && styles.catLabelActive]}>
+                  {cat.label}
+                </Text>
                 {active && <View style={styles.catUnderline} />}
               </TouchableOpacity>
             );
@@ -273,7 +315,9 @@ export default function Home() {
           <View style={styles.sectionRow}>
             <View style={styles.sectionLeft}>
               <Ionicons name="heart" size={14} color="#e11d48" style={{ marginRight: 5 }} />
-              <Text style={styles.sectionTitle}>Wishlist · {wishlistItems.length} saved</Text>
+              <Text style={styles.sectionTitle}>
+                Wishlist · {wishlistItems.length} saved
+              </Text>
             </View>
           </View>
         )}
@@ -281,7 +325,7 @@ export default function Home() {
 
       <FlatList
         data={displayList}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => String(item._id)}
         renderItem={renderCard}
         numColumns={2}
         columnWrapperStyle={styles.row}
@@ -297,7 +341,11 @@ export default function Home() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons name={showWishlist ? "heart-outline" : "cube-outline"} size={52} color="#e5e7eb" />
+            <Ionicons
+              name={showWishlist ? "heart-outline" : "cube-outline"}
+              size={52}
+              color="#e5e7eb"
+            />
             <Text style={styles.emptyTitle}>
               {showWishlist ? "Nothing saved yet" : "No items found"}
             </Text>
@@ -384,7 +432,6 @@ const styles = StyleSheet.create({
 
   cardName:  { fontSize: 13, fontWeight: "700", color: "#111", marginBottom: 2 },
   cardPrice: { fontSize: 14, fontWeight: "700", color: "#e11d48", marginBottom: 2 },
-  cardDesc:  { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 4 },
   cardMeta:  { fontSize: 10, color: "#9ca3af" },
 
   heartBtn: {

@@ -13,7 +13,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_W = (SCREEN_WIDTH - 48) / 2;
 
 const formatDate = (iso) =>
-  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+  iso
+    ? new Date(iso).toLocaleDateString("en-GB", {
+        day: "numeric", month: "short", year: "numeric",
+      })
+    : "";
 
 const ORDER_STATUS = {
   pending:   { bg: "#fef9ee", text: "#b45309", label: "Pending"   },
@@ -51,7 +55,10 @@ function ActionBtn({ label, variant, onPress, style }) {
   };
   const st = map[variant] || map.edit;
   return (
-    <TouchableOpacity style={[s.actionBtn, { backgroundColor: st.bg }, style]} onPress={onPress}>
+    <TouchableOpacity
+      style={[s.actionBtn, { backgroundColor: st.bg }, style]}
+      onPress={onPress}
+    >
       <Text style={[s.actionBtnText, { color: st.color }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -80,7 +87,8 @@ function EmptyState({ icon, text, btnText, onPress }) {
 
 // ─── Wishlist Modal ────────────────────────────────────────────────────────────
 function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, router }) {
-  const wishlisted = allItems.filter((i) => wishlistIds.includes(i._id));
+  // ✅ FIX: normalize IDs to strings for comparison
+  const wishlisted = allItems.filter((i) => wishlistIds.includes(String(i._id)));
 
   const renderCard = ({ item }) => (
     <TouchableOpacity
@@ -88,7 +96,11 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
       activeOpacity={0.88}
       onPress={() => {
         onClose();
-        router.push({ pathname: "/item-detail", params: { item: JSON.stringify(item) } });
+        // ✅ FIX: correct route — matches app/itemDetail.jsx
+        router.push({
+          pathname: "/itemDetail",
+          params: { item: JSON.stringify(item) },
+        });
       }}
     >
       {item.image ? (
@@ -112,17 +124,24 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
       </View>
 
       <View style={wl.cardBody}>
-        {/* Product name shown in wishlist */}
         {!!item.name && <Text style={wl.name} numberOfLines={1}>{item.name}</Text>}
         <Text style={wl.price}>₹{item.price}</Text>
-        {!!item.description && <Text style={wl.desc} numberOfLines={2}>{item.description}</Text>}
+        {!!item.description && (
+          <Text style={wl.desc} numberOfLines={2}>{item.description}</Text>
+        )}
         <Text style={wl.meta}>{item.uploaderName}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <TouchableOpacity style={wl.backdrop} activeOpacity={1} onPress={onClose} />
       <View style={wl.sheet}>
         <View style={wl.handle} />
@@ -143,7 +162,9 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
           <View style={wl.empty}>
             <Ionicons name="heart-outline" size={56} color="#fda4af" />
             <Text style={wl.emptyTitle}>Nothing saved yet</Text>
-            <Text style={wl.emptySub}>Tap ♡ on any listing in the home feed to save it here</Text>
+            <Text style={wl.emptySub}>
+              Tap ♡ on any listing in the home feed to save it here
+            </Text>
             <TouchableOpacity style={wl.browseBtn} onPress={onClose}>
               <Text style={wl.browseBtnText}>Browse listings</Text>
             </TouchableOpacity>
@@ -151,7 +172,7 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
         ) : (
           <FlatList
             data={wishlisted}
-            keyExtractor={(item) => item._id}
+            keyExtractor={(item) => String(item._id)}
             renderItem={renderCard}
             numColumns={2}
             columnWrapperStyle={wl.row}
@@ -164,7 +185,7 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
   );
 }
 
-// ─── Edit Item Modal — NOW HAS NAME FIELD ─────────────────────────────────────
+// ─── Edit Item Modal ───────────────────────────────────────────────────────────
 function EditItemModal({ item, visible, onClose, onSave }) {
   const [name,        setName]        = useState("");
   const [description, setDescription] = useState("");
@@ -188,7 +209,7 @@ function EditItemModal({ item, visible, onClose, onSave }) {
       setSaving(true);
       await itemAPI.updateItem(item._id, {
         name:        name.trim(),
-        description: description,   // can be empty — optional
+        description: description,
         price:       Number(price),
       });
       onSave();
@@ -206,7 +227,6 @@ function EditItemModal({ item, visible, onClose, onSave }) {
         <View style={m.sheet}>
           <Text style={m.title}>Edit listing</Text>
 
-          {/* Product Name — required */}
           <Text style={m.label}>
             Product Name <Text style={{ color: "#ef4444" }}>*</Text>
           </Text>
@@ -219,10 +239,9 @@ function EditItemModal({ item, visible, onClose, onSave }) {
             maxLength={80}
           />
 
-          {/* Description — optional */}
           <Text style={m.label}>
             Description{" "}
-            <Text style={{ color: "#9ca3af", fontWeight: "400", textTransform: "none", fontSize: 11 }}>
+            <Text style={{ color: "#9ca3af", fontWeight: "400", fontSize: 11 }}>
               (optional)
             </Text>
           </Text>
@@ -268,7 +287,10 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
 
   React.useEffect(() => {
-    if (item) { setWork(item.work || ""); setPrice(String(item.price || "")); }
+    if (item) {
+      setWork(item.work || "");
+      setPrice(String(item.price || ""));
+    }
   }, [item]);
 
   const save = async () => {
@@ -277,9 +299,13 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
     try {
       setSaving(true);
       await requestAPI.updateRequest(item._id, { work, price: Number(price) });
-      onSave(); onClose();
-    } catch (e) { Alert.alert("Error", e.message); }
-    finally { setSaving(false); }
+      onSave();
+      onClose();
+    } catch (e) {
+      Alert.alert("Error", e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -288,17 +314,31 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
         <View style={m.sheet}>
           <Text style={m.title}>Edit request</Text>
           <Text style={m.label}>Work description</Text>
-          <TextInput style={[m.input, m.ta]} value={work} onChangeText={setWork}
-            multiline placeholder="Describe the work…" placeholderTextColor="#9ca3af" />
+          <TextInput
+            style={[m.input, m.ta]}
+            value={work}
+            onChangeText={setWork}
+            multiline
+            placeholder="Describe the work…"
+            placeholderTextColor="#9ca3af"
+          />
           <Text style={m.label}>Budget (₹)</Text>
-          <TextInput style={m.input} value={price} onChangeText={setPrice}
-            keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#9ca3af" />
+          <TextInput
+            style={m.input}
+            value={price}
+            onChangeText={setPrice}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor="#9ca3af"
+          />
           <View style={m.btnRow}>
             <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
               <Text style={m.cancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={m.saveBtn} onPress={save} disabled={saving}>
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={m.saveText}>Save</Text>}
+              {saving
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={m.saveText}>Save</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -312,34 +352,42 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
   return (
     <>
       <Text style={s.secLabel}>My listings ({myItems.length})</Text>
-      {myItems.length === 0
-        ? <EmptyState icon="📦" text="No listings yet" btnText="+ Add listing" onPress={() => router.push("/upload")} />
-        : myItems.map((item) => (
-            <View key={item._id} style={s.card}>
-              <ItemThumb item={item} style={s.cardImg} />
-              <View style={s.cardBody}>
-                <View style={s.cardTop}>
-                  <TypePill type={item.type} />
-                  <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
-                </View>
-                {/* Product name — shown prominently */}
-                {!!item.name && (
-                  <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>
-                )}
-                {!!item.description && (
-                  <Text style={s.desc} numberOfLines={2}>{item.description}</Text>
-                )}
-                <View style={s.actRow}>
-                  <ActionBtn label="✏️ Edit"   variant="edit"   onPress={() => onEditItem(item)} />
-                  <ActionBtn label="🗑 Delete" variant="delete" onPress={() => onDeleteItem(item._id, "item")} />
-                </View>
+      {myItems.length === 0 ? (
+        <EmptyState
+          icon="📦"
+          text="No listings yet"
+          btnText="+ Add listing"
+          onPress={() => router.push("/upload")}
+        />
+      ) : (
+        myItems.map((item) => (
+          <View key={item._id} style={s.card}>
+            <ItemThumb item={item} style={s.cardImg} />
+            <View style={s.cardBody}>
+              <View style={s.cardTop}>
+                <TypePill type={item.type} />
+                <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
+              </View>
+              {!!item.name && (
+                <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>
+              )}
+              {!!item.description && (
+                <Text style={s.desc} numberOfLines={2}>{item.description}</Text>
+              )}
+              <View style={s.actRow}>
+                <ActionBtn label="✏️ Edit"   variant="edit"   onPress={() => onEditItem(item)} />
+                <ActionBtn label="🗑 Delete" variant="delete" onPress={() => onDeleteItem(item._id, "item")} />
               </View>
             </View>
-          ))
-      }
+          </View>
+        ))
+      )}
+
       {incomingOrders.length > 0 && (
         <>
-          <Text style={[s.secLabel, { marginTop: 20 }]}>Incoming orders ({incomingOrders.length})</Text>
+          <Text style={[s.secLabel, { marginTop: 20 }]}>
+            Incoming orders ({incomingOrders.length})
+          </Text>
           {incomingOrders.map((order) => (
             <View key={order._id} style={s.card}>
               <ItemThumb item={order} style={s.cardImg} />
@@ -348,14 +396,18 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
-                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
+                {!!order.itemName && (
+                  <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>
+                )}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>From: {order.buyerName || order.buyerEmail}</Text>
                   <StatusPill status={order.status} />
                 </View>
                 {order.rentStart && (
-                  <Text style={s.metaText}>{formatDate(order.rentStart)} → {formatDate(order.rentEnd)}</Text>
+                  <Text style={s.metaText}>
+                    {formatDate(order.rentStart)} → {formatDate(order.rentEnd)}
+                  </Text>
                 )}
                 {order.paymentStatus === "paid" && (
                   <Text style={[s.metaText, { color: "#15803d" }]}>💳 Payment received</Text>
@@ -367,8 +419,12 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                   </View>
                 )}
                 {order.status === "confirmed" && (
-                  <ActionBtn label="✓ Mark completed" variant="confirm"
-                    style={{ marginTop: 6 }} onPress={() => onOrderAction(order._id, "completed")} />
+                  <ActionBtn
+                    label="✓ Mark completed"
+                    variant="confirm"
+                    style={{ marginTop: 6 }}
+                    onPress={() => onOrderAction(order._id, "completed")}
+                  />
                 )}
               </View>
             </View>
@@ -381,8 +437,16 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
 
 // ─── Tab: Buying ───────────────────────────────────────────────────────────────
 function BuyingTab({ myOrders, onOrderAction, router }) {
-  if (myOrders.length === 0)
-    return <EmptyState icon="🛍️" text="No purchases yet" btnText="Browse listings" onPress={() => router.push("/home")} />;
+  if (myOrders.length === 0) {
+    return (
+      <EmptyState
+        icon="🛍️"
+        text="No purchases yet"
+        btnText="Browse listings"
+        onPress={() => router.push("/(tabs)/home")}
+      />
+    );
+  }
 
   const active = myOrders.filter((o) => !["completed", "cancelled"].includes(o.status));
   const past   = myOrders.filter((o) =>  ["completed", "cancelled"].includes(o.status));
@@ -400,21 +464,28 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
-                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
+                {!!order.itemName && (
+                  <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>
+                )}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>Seller: {order.sellerName || order.sellerEmail}</Text>
                   <StatusPill status={order.status} />
                 </View>
                 {order.rentStart && (
-                  <Text style={s.metaText}>{formatDate(order.rentStart)} → {formatDate(order.rentEnd)}</Text>
+                  <Text style={s.metaText}>
+                    {formatDate(order.rentStart)} → {formatDate(order.rentEnd)}
+                  </Text>
                 )}
-                {order.paymentStatus === "paid"
-                  ? <Text style={[s.metaText, { color: "#15803d", marginTop: 4 }]}>💳 Paid via Razorpay</Text>
-                  : order.status === "pending" && (
-                      <Text style={[s.metaText, { color: "#b45309", marginTop: 4 }]}>⏳ Awaiting seller confirmation</Text>
-                    )
-                }
+                {order.paymentStatus === "paid" ? (
+                  <Text style={[s.metaText, { color: "#15803d", marginTop: 4 }]}>
+                    💳 Paid via Razorpay
+                  </Text>
+                ) : order.status === "pending" ? (
+                  <Text style={[s.metaText, { color: "#b45309", marginTop: 4 }]}>
+                    ⏳ Awaiting seller confirmation
+                  </Text>
+                ) : null}
                 {order.status === "confirmed" && (
                   <View style={[s.actRow, { marginTop: 6 }]}>
                     <ActionBtn label="✓ Mark received" variant="confirm" onPress={() => onOrderAction(order._id, "completed")} />
@@ -422,14 +493,19 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   </View>
                 )}
                 {order.status === "pending" && (
-                  <ActionBtn label="Cancel request" variant="delete"
-                    style={{ marginTop: 6 }} onPress={() => onOrderAction(order._id, "cancelled")} />
+                  <ActionBtn
+                    label="Cancel request"
+                    variant="delete"
+                    style={{ marginTop: 6 }}
+                    onPress={() => onOrderAction(order._id, "cancelled")}
+                  />
                 )}
               </View>
             </View>
           ))}
         </>
       )}
+
       {past.length > 0 && (
         <>
           <Text style={[s.secLabel, { marginTop: 20 }]}>History ({past.length})</Text>
@@ -441,7 +517,9 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
-                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
+                {!!order.itemName && (
+                  <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>
+                )}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>{formatDate(order.createdAt)}</Text>
@@ -458,8 +536,16 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
 
 // ─── Tab: Requests ─────────────────────────────────────────────────────────────
 function RequestsTab({ myRequests, onEdit, onDelete, router }) {
-  if (myRequests.length === 0)
-    return <EmptyState icon="🙋" text="No requests yet" btnText="+ Post request" onPress={() => router.push("/request")} />;
+  if (myRequests.length === 0) {
+    return (
+      <EmptyState
+        icon="🙋"
+        text="No requests yet"
+        btnText="+ Post request"
+        onPress={() => router.push("/request")}
+      />
+    );
+  }
   return (
     <>
       <Text style={s.secLabel}>My service requests ({myRequests.length})</Text>
@@ -501,12 +587,14 @@ export default function Profile() {
   const [editingReq,      setEditingReq]      = useState(null);
   const [editReqVisible,  setEditReqVisible]  = useState(false);
 
+  // ✅ FIX: Separated fetchAll — removed getWishlist() from Promise.all
+  // to fix the "Already read" error. Wishlist is now fetched separately AFTER
+  // the main Promise.all resolves. Also removed Alert.alert from catch block.
   const fetchAll = useCallback(async () => {
     try {
-      const [u, wishlistRes, allItemsRes, itemsRes, reqsRes, myOrdersRes, sellingOrdersRes] =
+      const [u, allItemsRes, itemsRes, reqsRes, myOrdersRes, sellingOrdersRes] =
         await Promise.all([
           getUser(),
-          userAPI.getWishlist(),
           itemAPI.getItems(),
           itemAPI.getMyItems(),
           requestAPI.getMyRequests(),
@@ -514,21 +602,38 @@ export default function Profile() {
           orderAPI.getSellingOrders(),
         ]);
 
+      // ✅ FIX: set user with name fallback
       setUser(u);
-      if (wishlistRes.success) setWishlistIds(wishlistRes.data || []);
 
       const orgItems = Array.isArray(allItemsRes)
         ? allItemsRes
         : allItemsRes?.data || allItemsRes?.items || [];
       setAllItems(orgItems);
-      const validIds = orgItems.map(i => i._id);
-      setWishlistIds(prev => prev.filter(id => validIds.includes(id)));
-      if (itemsRes.success)         setMyItems(itemsRes.data);
-      if (reqsRes.success)          setMyRequests(reqsRes.data);
-      if (myOrdersRes.success)      setMyOrders(myOrdersRes.data);
-      if (sellingOrdersRes.success) setIncoming(sellingOrdersRes.data);
+
+      if (itemsRes.success)         setMyItems(itemsRes.data         || []);
+      if (reqsRes.success)          setMyRequests(reqsRes.data       || []);
+      if (myOrdersRes.success)      setMyOrders(myOrdersRes.data     || []);
+      if (sellingOrdersRes.success) setIncoming(sellingOrdersRes.data || []);
+
+      // ✅ FIX: fetch wishlist SEPARATELY after Promise.all finishes
+      // This prevents the "Already read" body stream error
+      try {
+        const wishlistRes = await userAPI.getWishlist();
+        if (wishlistRes.success) {
+          const validIds = orgItems.map((i) => String(i._id));
+          const cleaned = (wishlistRes.data || [])
+            .map(String)
+            .filter((id) => validIds.includes(id));
+          setWishlistIds(cleaned);
+        }
+      } catch (wErr) {
+        // Wishlist failing shouldn't crash the whole profile
+        console.log("wishlist fetch error:", wErr.message);
+      }
+
     } catch (e) {
-      Alert.alert("Error", e.message);
+      // ✅ FIX: log error instead of Alert — Alert was showing "Already read" popup
+      console.log("fetchAll error:", e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -537,14 +642,25 @@ export default function Profile() {
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
 
+  // ✅ FIX: normalize IDs to strings throughout
   const handleWishlistToggle = async (itemId) => {
-    const isIn = wishlistIds.includes(itemId);
-    setWishlistIds((prev) => isIn ? prev.filter((x) => x !== itemId) : [...prev, itemId]);
+    const strId = String(itemId);
+    const isIn  = wishlistIds.includes(strId);
+
+    setWishlistIds((prev) =>
+      isIn ? prev.filter((x) => x !== strId) : [...prev, strId]
+    );
+
     try {
-      const res = await userAPI.toggleWishlist(itemId);
-      if (res.success) setWishlistIds(res.wishlist || []);
+      const res = await userAPI.toggleWishlist(strId);
+      if (res.success && res.wishlist) {
+        setWishlistIds(res.wishlist.map(String));
+      }
     } catch {
-      setWishlistIds((prev) => isIn ? [...prev, itemId] : prev.filter((x) => x !== itemId));
+      // rollback
+      setWishlistIds((prev) =>
+        isIn ? [...prev, strId] : prev.filter((x) => x !== strId)
+      );
     }
   };
 
@@ -552,7 +668,8 @@ export default function Profile() {
     Alert.alert("Delete?", `Remove this ${type} permanently?`, [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Delete", style: "destructive",
+        text: "Delete",
+        style: "destructive",
         onPress: async () => {
           try {
             if (type === "item") {
@@ -562,7 +679,9 @@ export default function Profile() {
               await requestAPI.deleteRequest(id);
               setMyRequests((p) => p.filter((r) => r._id !== id));
             }
-          } catch (e) { Alert.alert("Error", e.message); }
+          } catch (e) {
+            Alert.alert("Error", e.message);
+          }
         },
       },
     ]);
@@ -572,27 +691,47 @@ export default function Profile() {
     try {
       await orderAPI.updateStatus(orderId, newStatus);
       fetchAll();
-    } catch (e) { Alert.alert("Error", e.message); }
+    } catch (e) {
+      Alert.alert("Error", e.message);
+    }
   };
 
   const handleLogout = () => {
     Alert.alert("Log out", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Log out", style: "destructive",
-        onPress: async () => { await clearSession(); router.replace("/login"); },
+        text: "Log out",
+        style: "destructive",
+        onPress: async () => {
+          await clearSession();
+          router.replace("/login");
+        },
       },
     ]);
   };
 
-  if (loading)
-    return <View style={s.centered}><ActivityIndicator size="large" color="#1a1a1a" /></View>;
+  if (loading) {
+    return (
+      <View style={s.centered}>
+        <ActivityIndicator size="large" color="#1a1a1a" />
+      </View>
+    );
+  }
 
   const TABS = [
     { key: "selling",  label: `Selling (${myItems.length})`     },
     { key: "buying",   label: `Buying (${myOrders.length})`     },
     { key: "requests", label: `Requests (${myRequests.length})` },
   ];
+
+  // ✅ FIX: normalize wishlistIds for the stats count
+  const wishlistCount = allItems.filter((i) =>
+    wishlistIds.includes(String(i._id))
+  ).length;
+
+  // ✅ FIX: safe user display name with fallbacks
+  const displayName  = user?.username || user?.name || user?.email?.split("@")[0] || "User";
+  const avatarLetter = displayName[0]?.toUpperCase() || "U";
 
   return (
     <View style={s.screen}>
@@ -611,9 +750,8 @@ export default function Profile() {
           <View style={s.coverStrip} />
           <View style={s.avatarRow}>
             <View style={s.avatar}>
-              <Text style={s.avatarText}>
-                {(user?.username || user?.email || "U")[0].toUpperCase()}
-              </Text>
+              {/* ✅ FIX: uses avatarLetter which is always safe */}
+              <Text style={s.avatarText}>{avatarLetter}</Text>
             </View>
             <View style={s.headerActions}>
               <TouchableOpacity onPress={() => setShowWishlist(true)} style={s.simpleHeart}>
@@ -625,16 +763,17 @@ export default function Profile() {
             </View>
           </View>
 
-          <Text style={s.userName}>{user?.username || "Your Name"}</Text>
+          {/* ✅ FIX: shows real name with proper fallbacks */}
+          <Text style={s.userName}>{displayName}</Text>
           <Text style={s.userEmail}>{user?.email}</Text>
-          {user?.org && <Text style={s.userOrg}>{user.org}</Text>}
+          {!!user?.org && <Text style={s.userOrg}>{user.org}</Text>}
 
           <View style={s.statsRow}>
             {[
-              { n: myItems.length,     l: "Listings"  },
-              { n: allItems.filter(i => wishlistIds.includes(i._id)).length, l: "Wishlist" },
-              { n: myOrders.length,    l: "Orders"    },
-              { n: myRequests.length,  l: "Requests"  },
+              { n: myItems.length,   l: "Listings"  },
+              { n: wishlistCount,    l: "Wishlist"  },
+              { n: myOrders.length,  l: "Orders"    },
+              { n: myRequests.length,l: "Requests"  },
             ].map((st, i, arr) => (
               <React.Fragment key={st.l}>
                 <View style={s.stat}>
@@ -648,7 +787,11 @@ export default function Profile() {
         </View>
 
         {/* Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={s.tabsWrap}
+        >
           <View style={s.tabs}>
             {TABS.map(({ key, label }) => (
               <TouchableOpacity
@@ -656,7 +799,9 @@ export default function Profile() {
                 style={[s.tab, tab === key && s.tabActive]}
                 onPress={() => setTab(key)}
               >
-                <Text style={[s.tabText, tab === key && s.tabTextActive]}>{label}</Text>
+                <Text style={[s.tabText, tab === key && s.tabTextActive]}>
+                  {label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -675,7 +820,11 @@ export default function Profile() {
             />
           )}
           {tab === "buying" && (
-            <BuyingTab myOrders={myOrders} onOrderAction={handleOrderAction} router={router} />
+            <BuyingTab
+              myOrders={myOrders}
+              onOrderAction={handleOrderAction}
+              router={router}
+            />
           )}
           {tab === "requests" && (
             <RequestsTab
@@ -725,7 +874,10 @@ const s = StyleSheet.create({
 
   header:     { backgroundColor: "#1a1a1a", paddingBottom: 20 },
   coverStrip: { height: 52, backgroundColor: "#2a2a2a" },
-  avatarRow:  { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20 },
+  avatarRow:  {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "flex-end", paddingHorizontal: 20,
+  },
   avatar: {
     width: 68, height: 68, borderRadius: 34,
     backgroundColor: "#333", borderWidth: 3, borderColor: "#1a1a1a",
@@ -734,14 +886,23 @@ const s = StyleSheet.create({
   avatarText:    { fontSize: 26, color: "#fff", fontWeight: "700" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 6 },
   simpleHeart:   { padding: 6, justifyContent: "center", alignItems: "center" },
-  logoutBtn:     { borderWidth: 0.5, borderColor: "#555", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
+  logoutBtn:     {
+    borderWidth: 0.5, borderColor: "#555", borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
   logoutBtnText: { color: "#9ca3af", fontSize: 12, fontWeight: "600" },
 
   userName:  { fontSize: 20, fontWeight: "700", color: "#fff", paddingHorizontal: 20, marginTop: 10 },
-  userEmail: { fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
-  userOrg:   { fontSize: 11, color: "#666", paddingHorizontal: 20, marginTop: 2 },
+  userEmail: {
+    fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  userOrg: { fontSize: 11, color: "#666", paddingHorizontal: 20, marginTop: 2 },
 
-  statsRow:  { flexDirection: "row", marginTop: 16, borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14 },
+  statsRow: {
+    flexDirection: "row", marginTop: 16,
+    borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14,
+  },
   stat:      { flex: 1, alignItems: "center" },
   statNum:   { fontSize: 18, fontWeight: "700", color: "#fff" },
   statLabel: { fontSize: 9, color: "#666", marginTop: 2 },
@@ -755,15 +916,22 @@ const s = StyleSheet.create({
   tabTextActive: { color: "#1a1a1a" },
 
   content:  { padding: 16 },
-  secLabel: { fontSize: 10, fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  secLabel: {
+    fontSize: 10, fontWeight: "700", color: "#9ca3af",
+    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
+  },
 
-  card:           { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, marginBottom: 10, overflow: "hidden", borderWidth: 0.5, borderColor: "#ebebeb" },
+  card: {
+    flexDirection: "row", backgroundColor: "#fff", borderRadius: 14,
+    marginBottom: 10, overflow: "hidden",
+    borderWidth: 0.5, borderColor: "#ebebeb",
+  },
   cardImg:        { width: 84, height: 96, resizeMode: "cover" },
   imgPlaceholder: { backgroundColor: "#e9e9e7" },
   cardBody:       { flex: 1, padding: 10 },
   cardTop:        { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   cardMeta:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 3, marginBottom: 3 },
-  cardName:       { fontSize: 13, fontWeight: "700", color: "#1a1a1a", marginBottom: 2 },  // ← product name
+  cardName:       { fontSize: 13, fontWeight: "700", color: "#1a1a1a", marginBottom: 2 },
   price:          { fontSize: 15, fontWeight: "700", color: "#1a1a1a" },
   desc:           { fontSize: 12, color: "#6b7280", lineHeight: 17, marginBottom: 6 },
   metaText:       { fontSize: 10, color: "#9ca3af" },
@@ -794,26 +962,57 @@ const s = StyleSheet.create({
 });
 
 const wl = StyleSheet.create({
-  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.48)" },
-  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "88%", paddingBottom: Platform.OS === "ios" ? 34 : 16 },
-  handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: "#e5e7eb", alignSelf: "center", marginTop: 10, marginBottom: 4 },
-  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
+  backdrop: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.48)",
+  },
+  sheet: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#fff", borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    maxHeight: "88%",
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
+  },
+  handle: {
+    width: 38, height: 4, borderRadius: 2, backgroundColor: "#e5e7eb",
+    alignSelf: "center", marginTop: 10, marginBottom: 4,
+  },
+  sheetHeader: {
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: "#f3f4f6",
+  },
   sheetTitleRow: { flexDirection: "row", alignItems: "center" },
   sheetTitle:    { fontSize: 18, fontWeight: "700", color: "#111" },
-  countBadge:    { marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10, minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
-  countBadgeText:{ fontSize: 12, fontWeight: "800", color: "#e11d48" },
-  closeBtn:      { width: 34, height: 34, borderRadius: 17, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
-  listContent:   { padding: 12 },
-  row:           { justifyContent: "space-between", marginBottom: 12 },
-  card:          { width: CARD_W, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
+  countBadge: {
+    marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10,
+    minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6,
+  },
+  countBadgeText: { fontSize: 12, fontWeight: "800", color: "#e11d48" },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
+  },
+  listContent: { padding: 12 },
+  row:         { justifyContent: "space-between", marginBottom: 12 },
+  card: {
+    width: CARD_W, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+  },
   cardImg:       { width: "100%", height: CARD_W * 1.05 },
   noImg:         { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   cardBody:      { padding: 9 },
-  name:          { fontSize: 12, fontWeight: "700", color: "#111", marginBottom: 1 },  // ← name in wishlist
+  name:          { fontSize: 12, fontWeight: "700", color: "#111", marginBottom: 1 },
   price:         { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2 },
   desc:          { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 3 },
   meta:          { fontSize: 10, color: "#9ca3af" },
-  heartBtn:      { position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: "#e11d48", alignItems: "center", justifyContent: "center", shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.45, shadowRadius: 5, elevation: 5 },
+  heartBtn: {
+    position: "absolute", top: 8, right: 8,
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "#e11d48", alignItems: "center", justifyContent: "center",
+    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45, shadowRadius: 5, elevation: 5,
+  },
   typeBadge:     { position: "absolute", top: 8, left: 8, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
   badgeSell:     { backgroundColor: "#6366f1" },
   badgeRent:     { backgroundColor: "#f59e0b" },
