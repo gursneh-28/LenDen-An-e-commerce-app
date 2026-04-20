@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from "react";
+import { RefreshControl } from "react-native";
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, ActivityIndicator, Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import { itemAPI } from "../services/api";
+import { itemAPI, userAPI } from "../services/api";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -49,30 +50,80 @@ export default function Wishlist() {
   const router = useRouter();
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadWishlist = useCallback(async () => {
     try {
       setLoading(true);
-      const [allRes, stored] = await Promise.all([
-        itemAPI.getItems(),
-        AsyncStorage.getItem("wishlist"),
-      ]);
-      const ids = new Set(stored ? JSON.parse(stored) : []);
-      if (allRes.success) setItems(allRes.data.filter((i) => ids.has(i._id)));
-    } catch {}
-    finally { setLoading(false); }
+      // Get wishlist IDs from backend
+      const wishlistRes = await userAPI.getWishlist();
+      console.log("Wishlist response:", wishlistRes);
+      
+      if (wishlistRes.success && wishlistRes.data && wishlistRes.data.length > 0) {
+        // Get all items
+        const allItemsRes = await itemAPI.getItems();
+        const allItems = Array.isArray(allItemsRes) 
+          ? allItemsRes 
+          : allItemsRes?.data || allItemsRes?.items || [];
+        
+        // Filter items that are in wishlist
+        const wishlistIds = wishlistRes.data.map(id => String(id));
+        const wishlistItems = allItems.filter(item => wishlistIds.includes(String(item._id)));
+        setItems(wishlistItems);
+        console.log("Wishlist items loaded:", wishlistItems.length);
+      } else {
+        setItems([]);
+      }
+    } catch (error) {
+      console.log("Load wishlist error:", error);
+      // Fallback to local storage if backend fails
+      try {
+        const stored = await AsyncStorage.getItem("wishlist");
+        const ids = stored ? JSON.parse(stored) : [];
+        if (ids.length > 0) {
+          const allItemsRes = await itemAPI.getItems();
+          const allItems = Array.isArray(allItemsRes) 
+            ? allItemsRes 
+            : allItemsRes?.data || allItemsRes?.items || [];
+          const wishlistItems = allItems.filter(item => ids.includes(String(item._id)));
+          setItems(wishlistItems);
+        }
+      } catch (fallbackError) {
+        console.log("Fallback error:", fallbackError);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
   useFocusEffect(useCallback(() => { loadWishlist(); }, [loadWishlist]));
 
   const removeItem = async (id) => {
     try {
-      const stored = await AsyncStorage.getItem("wishlist");
-      const ids    = new Set(stored ? JSON.parse(stored) : []);
-      ids.delete(id);
-      await AsyncStorage.setItem("wishlist", JSON.stringify([...ids]));
+      // Remove from backend
+      await userAPI.toggleWishlist(id);
+      // Update local state
       setItems((prev) => prev.filter((i) => i._id !== id));
-    } catch {}
+      // Also update local storage for fallback
+      const stored = await AsyncStorage.getItem("wishlist");
+      const ids = stored ? JSON.parse(stored) : [];
+      const newIds = ids.filter(i => String(i) !== String(id));
+      await AsyncStorage.setItem("wishlist", JSON.stringify(newIds));
+    } catch (error) {
+      console.log("Remove item error:", error);
+    }
+  };
+
+  const browseListings = () => {
+    router.push("/(tabs)/home");
+  };
+
+  const viewItem = (item) => {
+    router.push({
+      pathname: "/itemDetail",
+      params: { item: JSON.stringify(item) },
+    });
   };
 
   return (
@@ -93,7 +144,7 @@ export default function Wishlist() {
           <Text style={s.emptyIcon}>🤍</Text>
           <Text style={s.emptyTitle}>Nothing saved yet</Text>
           <Text style={s.emptySub}>Heart items while browsing to save them here</Text>
-          <TouchableOpacity style={s.browseBtn} onPress={() => router.push("/home")}>
+          <TouchableOpacity style={s.browseBtn} onPress={browseListings}>
             <Text style={s.browseBtnText}>Browse listings</Text>
           </TouchableOpacity>
         </View>
@@ -105,14 +156,17 @@ export default function Wishlist() {
             <WishCard
               item={item}
               onRemove={() => removeItem(item._id)}
-              onView={() => {
-                // Navigate to home — in a real app you'd open the product modal directly
-                router.push("/home");
-              }}
+              onView={() => viewItem(item)}
             />
           )}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => { setRefreshing(true); loadWishlist(); }}
+            />
+          }
         />
       )}
     </View>

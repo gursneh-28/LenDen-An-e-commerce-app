@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View, Text, Image, ScrollView, TouchableOpacity,
-  StyleSheet, Platform, Dimensions,
+  StyleSheet, Platform, Dimensions, Alert, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getUser, itemRoomId } from "../services/api";
+import { getUser, itemRoomId, userAPI } from "../services/api";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width: W } = Dimensions.get("window");
 
@@ -17,16 +18,63 @@ export default function ItemDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [imgIndex, setImgIndex] = useState(0);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // ✅ FIX: Safe JSON parse — prevents crash if params.item is undefined or malformed
-  let item = null;
-  try {
-    if (params.item) {
-      item = JSON.parse(params.item);
+  // Parse item — memoized so it's a stable reference (not re-parsed on every render)
+  const item = useMemo(() => {
+    try {
+      return params.item ? JSON.parse(params.item) : null;
+    } catch (e) {
+      console.log("Failed to parse item param:", e);
+      return null;
     }
-  } catch (e) {
-    console.log("Failed to parse item param:", e);
-  }
+  }, [params.item]);
+
+  // Check wishlist status once on mount (when item._id is known)
+  useEffect(() => {
+    if (item?._id) checkWishlistStatus();
+  }, [item?._id]);
+
+  const checkWishlistStatus = async () => {
+    try {
+      const res = await userAPI.getWishlist();
+      if (res.success && res.data) {
+        const wishlistIds = res.data.map(id => String(id));
+        setIsWishlisted(wishlistIds.includes(String(item._id)));
+      }
+    } catch (e) {
+      console.log("check wishlist error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleWishlist = async () => {
+    if (wishlistLoading || !item) return;
+
+    setWishlistLoading(true);
+    const wasWishlisted = isWishlisted;
+    setIsWishlisted(!wasWishlisted); // optimistic
+
+    try {
+      const res = await userAPI.toggleWishlist(item._id);
+      if (res.success) {
+        if (res.wishlist) {
+          setIsWishlisted(res.wishlist.map(id => String(id)).includes(String(item._id)));
+        }
+      } else {
+        setIsWishlisted(wasWishlisted);
+      }
+    } catch (e) {
+      console.log("toggle wishlist error:", e);
+      setIsWishlisted(wasWishlisted);
+      Alert.alert("Error", e.message || "Failed to update wishlist");
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
 
   if (!item) {
     return (
@@ -59,7 +107,6 @@ export default function ItemDetail() {
         roomId,
         contextType:  "item",
         contextId:    item._id,
-        // ✅ FIX: prefer item.name, fallback to description slice
         contextTitle: item.name || item.description?.slice(0, 50) || "Product",
         contextPrice: item.price,
         contextImage: images[0] || null,
@@ -72,6 +119,7 @@ export default function ItemDetail() {
       });
     } catch (e) {
       console.log("handleChat error:", e);
+      Alert.alert("Error", "Could not start chat");
     }
   };
 
@@ -82,15 +130,39 @@ export default function ItemDetail() {
     });
   };
 
-  // ✅ FIX: Safe seller initial — guards against null/undefined
   const sellerInitial =
     (item.uploaderName || item.uploadedBy || "?")[0]?.toUpperCase() || "?";
+
+  if (loading) {
+    return (
+      <View style={s.centered}>
+        <ActivityIndicator size="large" color="#e11d48" />
+      </View>
+    );
+  }
 
   return (
     <View style={s.screen}>
       {/* Back button */}
       <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
         <Text style={s.backBtnText}>←</Text>
+      </TouchableOpacity>
+
+      {/* Wishlist Heart Button */}
+      <TouchableOpacity 
+        style={s.wishlistBtn} 
+        onPress={toggleWishlist}
+        disabled={wishlistLoading}
+      >
+        {wishlistLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Ionicons 
+            name={isWishlisted ? "heart" : "heart-outline"} 
+            size={24} 
+            color={isWishlisted ? "#e11d48" : "#fff"} 
+          />
+        )}
       </TouchableOpacity>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -123,12 +195,10 @@ export default function ItemDetail() {
         )}
 
         <View style={s.body}>
-          {/* Product name — shown at top */}
           {!!item.name && (
             <Text style={s.name}>{item.name}</Text>
           )}
 
-          {/* Price + badge */}
           <View style={s.priceRow}>
             <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
             <View style={[s.pill, isRent ? s.pillRent : s.pillSell]}>
@@ -138,12 +208,10 @@ export default function ItemDetail() {
             </View>
           </View>
 
-          {/* Description */}
           {!!item.description && (
             <Text style={s.desc}>{item.description}</Text>
           )}
 
-          {/* Availability */}
           {isRent && item.availability?.length > 0 && (
             <View style={s.section}>
               <Text style={s.sectionTitle}>Availability</Text>
@@ -155,7 +223,6 @@ export default function ItemDetail() {
             </View>
           )}
 
-          {/* Seller */}
           <View style={s.sellerCard}>
             <View style={s.sellerAvatar}>
               <Text style={s.sellerAvatarText}>{sellerInitial}</Text>
@@ -169,7 +236,6 @@ export default function ItemDetail() {
             </View>
           </View>
 
-          {/* Action buttons */}
           <TouchableOpacity style={s.chatBtn} onPress={handleChat}>
             <Text style={s.chatBtnText}>💬  Chat with seller</Text>
           </TouchableOpacity>
@@ -201,6 +267,24 @@ const s = StyleSheet.create({
   },
   backBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
 
+  wishlistBtn: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 52 : 16,
+    right: 16,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+
   image:       { width: W, height: W * 0.85, resizeMode: "cover" },
   noImage:     { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" },
   noImageText: { fontSize: 48 },
@@ -211,7 +295,6 @@ const s = StyleSheet.create({
 
   body: { padding: 20 },
 
-  // ✅ NEW: product name style at top of detail
   name: { fontSize: 22, fontWeight: "800", color: "#111", marginBottom: 10 },
 
   priceRow: {

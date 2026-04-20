@@ -1,8 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from 'react-native';
 
-const API_BASE_URL = "https://lenden-an-e-commerce-app.onrender.com/api";
-export const SOCKET_URL = "https://lenden-an-e-commerce-app.onrender.com";
+// ─── Toggle this to test locally ─────────────────────────────────────────────
+const LOCAL_MODE = true;  // set true to use local backend, false for Render
+const LOCAL_IP   = "172.16.61.155"; // your PC's LAN IP (run `ipconfig` to check)
+const LOCAL_PORT = 5000;
+// ─────────────────────────────────────────────────────────────────────────────
+
+const API_BASE_URL = LOCAL_MODE
+  ? `http://${LOCAL_IP}:${LOCAL_PORT}/api`
+  : "https://lenden-an-e-commerce-app.onrender.com/api";
+
+export const SOCKET_URL = LOCAL_MODE
+  ? `http://${LOCAL_IP}:${LOCAL_PORT}`
+  : "https://lenden-an-e-commerce-app.onrender.com";
 
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
@@ -35,21 +46,23 @@ async function apiRequest(endpoint, method = "GET", data = null) {
   if (data) options.body = JSON.stringify(data);
 
   const response = await fetch(url, options);
+  const responseText = await response.text();
 
   let result;
   try {
-    result = await response.json();
+    result = responseText ? JSON.parse(responseText) : {};
   } catch (err) {
-    console.log("API returned non-JSON:", await response.text());
-    throw new Error("Server error (not JSON)");
+    console.error(`[API] Invalid JSON from ${method} ${endpoint}:`, responseText.substring(0, 200));
+    throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}`);
   }
 
   if (!response.ok) {
-    throw new Error(result.message || "Something went wrong");
+    console.error(`[API] ${method} ${endpoint} → ${response.status}:`, result.message);
+    throw new Error(result.message || `Request failed with status ${response.status}`);
   }
 
   return result;
-} // ✅ FIX: added this closing bracket
+}
 
 async function apiUpload(endpoint, formData) {
   const url = `${API_BASE_URL}${endpoint}`;
@@ -100,8 +113,29 @@ export const paymentAPI = {
 };
 
 export const userAPI = {
-  getWishlist: () => apiRequest("/user/wishlist"),
-  toggleWishlist: (itemId) => apiRequest("/user/wishlist/toggle", "POST", { itemId }),
+  getWishlist: async () => {
+    try {
+      const result = await apiRequest("/user/wishlist");
+      if (result.success && result.wishlist) return { success: true, data: result.wishlist };
+      if (result.data)                        return { success: true, data: result.data };
+      if (Array.isArray(result))              return { success: true, data: result };
+      return { success: true, data: [] };
+    } catch (error) {
+      console.error("[API] getWishlist failed:", error.message);
+      return { success: false, data: [], error: error.message };
+    }
+  },
+  toggleWishlist: async (itemId) => {
+    try {
+      const result = await apiRequest("/user/wishlist/toggle", "POST", { itemId });
+      if (result.success && result.wishlist) return { success: true, wishlist: result.wishlist };
+      if (result.data)                       return { success: true, wishlist: result.data };
+      return { success: true, wishlist: [] };
+    } catch (error) {
+      console.error("[API] toggleWishlist failed:", error.message);
+      throw error;
+    }
+  },
 };
 
 export const chatAPI = {
@@ -109,6 +143,7 @@ export const chatAPI = {
   getConversations: ()   => apiRequest("/chat/conversations"),
   getMessages:      (id) => apiRequest(`/chat/messages/${id}`),
   sendMessage:      (d)  => apiRequest("/chat/messages", "POST", d),
+  getUnread:        ()   => apiRequest("/chat/unread"),
 };
 
 export function itemRoomId(itemId, emailA, emailB) {

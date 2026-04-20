@@ -163,7 +163,7 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
             <Text style={wl.emptySub}>
               Tap ♡ on any listing in the home feed to save it here
             </Text>
-            <TouchableOpacity style={wl.browseBtn} onPress={onClose}>
+            <TouchableOpacity style={wl.browseBtn} onPress={() => { onClose(); router.push("/(tabs)/home"); }}>
               <Text style={wl.browseBtnText}>Browse listings</Text>
             </TouchableOpacity>
           </View>
