@@ -10,51 +10,67 @@ import AsyncStorage  from "@react-native-async-storage/async-storage";
 import { chatAPI, SOCKET_URL } from "../services/api";
 
 function timeStr(iso) {
+  if (!iso) return "";
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function Chat() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const conv   = params.conv   ? JSON.parse(params.conv)   : null;
+  const router  = useRouter();
+  const params  = useLocalSearchParams();
+
+  let conv = null;
+  try { conv = params.conv ? JSON.parse(params.conv) : null; } catch {}
   const myEmail = params.myEmail || "";
 
-  const [messages,  setMessages]  = useState([]);
-  const [text,      setText]      = useState("");
-  const [loading,   setLoading]   = useState(true);
-  const [sending,   setSending]   = useState(false);
-  const socketRef = useRef(null);
-  const listRef   = useRef(null);
+  const [messages, setMessages] = useState([]);
+  const [text,     setText]     = useState("");
+  const [loading,  setLoading]  = useState(true);
 
-  const isItem   = conv?.contextType === "item";
-  const roomId   = conv?.roomId;
+  const socketRef  = useRef(null);
+  const listRef    = useRef(null);
+  // ✅ FIX: ref to block double-send regardless of re-renders
+  const isSendingRef = useRef(false);
+
+  const isItem     = conv?.contextType === "item";
+  const roomId     = conv?.roomId;
   const otherEmail = conv?.participants?.find((p) => p !== myEmail) || "";
   const otherName  = otherEmail.split("@")[0];
 
-  // ── Load history + connect socket ──
+  // ── Load history + connect socket ──────────────────────────────────────────
   useEffect(() => {
     if (!roomId) return;
 
-    // 1. Fetch existing messages from REST
-    chatAPI.getMessages(roomId).then((res) => {
-      if (res.success) setMessages(res.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    chatAPI.getMessages(roomId)
+      .then((res) => { if (res.success) setMessages(res.data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
 
-    // 2. Connect Socket.io
     const connectSocket = async () => {
-      const token = await AsyncStorage.getItem("token");
+      const token  = await AsyncStorage.getItem("token");
       const socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
       socketRef.current = socket;
 
-      socket.on("connect", () => {
-        socket.emit("join_room", roomId);
-      });
+      socket.on("connect", () => socket.emit("join_room", roomId));
 
       socket.on("new_message", (msg) => {
         setMessages((prev) => {
-          // Avoid duplicates (optimistic update already added it)
-          if (prev.some((m) => m._id?.toString() === msg._id?.toString())) return prev;
+          // ✅ FIX: drop the message if we already have it by _id OR by optimistic temp id
+          // This prevents the server echo from doubling the optimistic bubble
+          const alreadyExists = prev.some(
+            (m) =>
+              // exact _id match (server → server duplicate)
+              (m._id && msg._id && m._id.toString() === msg._id.toString()) ||
+              // optimistic bubble for OUR OWN message — replace it instead of appending
+              (m._id?.startsWith?.("opt_") && m.senderEmail === msg.senderEmail && m.text === msg.text)
+          );
+          if (alreadyExists) {
+            // Replace optimistic bubble with real server message
+            return prev.map((m) =>
+              m._id?.startsWith?.("opt_") && m.senderEmail === msg.senderEmail && m.text === msg.text
+                ? msg   // swap temp bubble → real message (gets real _id + timestamp)
+                : m
+            );
+          }
           return [...prev, msg];
         });
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
@@ -68,16 +84,28 @@ export default function Chat() {
     return () => {
       socketRef.current?.emit("leave_room", roomId);
       socketRef.current?.disconnect();
+      socketRef.current = null;
     };
   }, [roomId]);
 
-  // ── Send message ──
+  // ── Send message ────────────────────────────────────────────────────────────
   const sendMessage = useCallback(() => {
-    if (!text.trim() || !socketRef.current) return;
+    const trimmed = text.trim();
+
+    // ✅ FIX: Guard 1 — empty text or no socket
+    if (!trimmed || !socketRef.current) return;
+
+    // ✅ FIX: Guard 2 — ref-based lock so double-tap / onSubmitEditing + onPress
+    // can never both fire. This is the main fix for the 2-message bug.
+    if (isSendingRef.current) return;
+    isSendingRef.current = true;
+
+    // Clear input immediately so user can't tap again
+    setText("");
 
     const payload = {
       roomId,
-      text:           text.trim(),
+      text:           trimmed,
       recipientEmail: otherEmail,
       recipientName:  otherName,
       contextType:    conv.contextType,
@@ -88,20 +116,24 @@ export default function Chat() {
       org:            conv.org,
     };
 
-    // Optimistic update
+    // Optimistic bubble — shown instantly before server confirms
     const optimistic = {
       _id:         `opt_${Date.now()}`,
       roomId,
       senderEmail: myEmail,
-      text:        text.trim(),
+      text:        trimmed,
       createdAt:   new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimistic]);
-    setText("");
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
 
+    // Emit to socket
     socketRef.current.emit("send_message", payload);
-  }, [text, roomId, otherEmail, conv, myEmail]);
+
+    // ✅ FIX: Release lock after short delay — prevents rapid double-tap
+    // but allows the next message to be sent normally
+    setTimeout(() => { isSendingRef.current = false; }, 300);
+  }, [text, roomId, otherEmail, otherName, conv, myEmail]);
 
   const renderMessage = ({ item }) => {
     const isMine = item.senderEmail === myEmail;
@@ -119,9 +151,18 @@ export default function Chat() {
     );
   };
 
-  if (!conv) return <View style={s.centered}><Text>No conversation data.</Text></View>;
+  if (!conv) {
+    return (
+      <View style={s.centered}>
+        <Text style={{ color: "#6b7280" }}>No conversation data.</Text>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 12 }}>
+          <Text style={{ color: "#6366f1", fontWeight: "700" }}>← Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
-  const contextBg    = isItem ? "#eff6ff" : "#fef9ee";
+  const contextBg     = isItem ? "#eff6ff" : "#fef9ee";
   const contextBorder = isItem ? "#dbeafe" : "#fde68a";
   const contextColor  = isItem ? "#1d4ed8" : "#92400e";
   const contextSub    = isItem ? "#3b82f6" : "#b45309";
@@ -130,7 +171,7 @@ export default function Chat() {
     <KeyboardAvoidingView
       style={s.screen}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      keyboardVerticalOffset={0}
     >
       {/* Header */}
       <View style={s.header}>
@@ -138,15 +179,17 @@ export default function Chat() {
           <Text style={s.backText}>←</Text>
         </TouchableOpacity>
         <View style={[s.headerAvatar, isItem ? s.avItem : s.avReq]}>
-          <Text style={s.headerAvatarText}>{otherName[0]?.toUpperCase() || "?"}</Text>
+          <Text style={s.headerAvatarText}>
+            {otherName[0]?.toUpperCase() || "?"}
+          </Text>
         </View>
         <View style={s.headerInfo}>
-          <Text style={s.headerName}>{otherName}</Text>
+          <Text style={s.headerName}>{otherName.toUpperCase()}</Text>
           <Text style={s.headerEmail} numberOfLines={1}>{otherEmail}</Text>
         </View>
       </View>
 
-      {/* Context banner — item or request */}
+      {/* Context banner */}
       <View style={[s.contextBanner, { backgroundColor: contextBg, borderBottomColor: contextBorder }]}>
         {conv.contextImage ? (
           <Image source={{ uri: conv.contextImage }} style={s.contextImg} />
@@ -167,12 +210,14 @@ export default function Chat() {
 
       {/* Messages */}
       {loading ? (
-        <View style={s.centered}><ActivityIndicator color="#111" /></View>
+        <View style={s.centered}>
+          <ActivityIndicator color="#111" />
+        </View>
       ) : (
         <FlatList
           ref={listRef}
           data={messages}
-          keyExtractor={(item, i) => (item._id?.toString() || i.toString())}
+          keyExtractor={(item, i) => item._id?.toString() || i.toString()}
           renderItem={renderMessage}
           contentContainerStyle={s.messageList}
           showsVerticalScrollIndicator={false}
@@ -195,8 +240,10 @@ export default function Chat() {
           placeholderTextColor="#9ca3af"
           multiline
           maxLength={1000}
-          onSubmitEditing={sendMessage}
-          returnKeyType="send"
+          // ✅ FIX: REMOVED onSubmitEditing={sendMessage} — this was firing
+          // at the same time as onPress, causing every message to send twice.
+          // The send button onPress is the only trigger now.
+          returnKeyType="default"
           blurOnSubmit={false}
         />
         <TouchableOpacity
@@ -243,19 +290,19 @@ const s = StyleSheet.create({
   contextTitle: { fontSize: 13, fontWeight: "700" },
   contextPrice: { fontSize: 11, marginTop: 1 },
 
-  messageList: { padding: 14, gap: 8, flexGrow: 1 },
-  bubbleWrap:         { marginBottom: 6 },
-  bubbleMineWrap:     { alignItems: "flex-end" },
-  bubbleTheirsWrap:   { alignItems: "flex-start" },
-  bubble:             { maxWidth: "72%", paddingHorizontal: 13, paddingVertical: 9, borderRadius: 16 },
-  bubbleMine:         { backgroundColor: "#111", borderBottomRightRadius: 4 },
-  bubbleTheirs:       { backgroundColor: "#fff", borderWidth: 0.5, borderColor: "#e5e7eb", borderBottomLeftRadius: 4 },
-  bubbleText:         { fontSize: 14, lineHeight: 20 },
-  bubbleTextMine:     { color: "#fff" },
-  bubbleTextTheirs:   { color: "#111" },
-  bubbleTime:         { fontSize: 10, color: "#9ca3af", marginTop: 3 },
-  timeRight:          { textAlign: "right" },
-  timeLeft:           { textAlign: "left" },
+  messageList:      { padding: 14, gap: 8, flexGrow: 1 },
+  bubbleWrap:       { marginBottom: 6 },
+  bubbleMineWrap:   { alignItems: "flex-end" },
+  bubbleTheirsWrap: { alignItems: "flex-start" },
+  bubble:           { maxWidth: "72%", paddingHorizontal: 13, paddingVertical: 9, borderRadius: 16 },
+  bubbleMine:       { backgroundColor: "#111", borderBottomRightRadius: 4 },
+  bubbleTheirs:     { backgroundColor: "#fff", borderWidth: 0.5, borderColor: "#e5e7eb", borderBottomLeftRadius: 4 },
+  bubbleText:       { fontSize: 14, lineHeight: 20 },
+  bubbleTextMine:   { color: "#fff" },
+  bubbleTextTheirs: { color: "#111" },
+  bubbleTime:       { fontSize: 10, color: "#9ca3af", marginTop: 3 },
+  timeRight:        { textAlign: "right" },
+  timeLeft:         { textAlign: "left" },
 
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 8,
@@ -266,8 +313,8 @@ const s = StyleSheet.create({
   },
   input: {
     flex: 1, backgroundColor: "#f3f4f6", borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10, fontSize: 14,
-    color: "#111", maxHeight: 120,
+    paddingHorizontal: 16, paddingVertical: 10,
+    fontSize: 14, color: "#111", maxHeight: 120,
   },
   sendBtn:         { width: 38, height: 38, borderRadius: 19, backgroundColor: "#111", justifyContent: "center", alignItems: "center" },
   sendBtnDisabled: { backgroundColor: "#d1d5db" },

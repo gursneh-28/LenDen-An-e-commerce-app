@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Platform,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { chatAPI, getUser } from "../../services/api";
+import { chatAPI, getUser } from "../services/api";
 
 function timeAgo(iso) {
   if (!iso) return "";
@@ -83,6 +83,11 @@ export default function Inbox() {
   return (
     <View style={s.screen}>
       <View style={s.header}>
+         <TouchableOpacity onPress={() => router.back()} style={{ marginBottom: 6 }}>
+    <Text style={{ fontSize: 18, color: "#6366f1", fontWeight: "700" }}>
+      ← Back
+    </Text>
+  </TouchableOpacity>
         <Text style={s.headerTitle}>Messages</Text>
         <Text style={s.headerSub}>{conversations.length} conversations</Text>
       </View>

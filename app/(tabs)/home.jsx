@@ -35,7 +35,6 @@ function timeAgo(iso) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// ✅ FIX: Pure function outside component — no stale closure issues
 function applyFilters(list, q, cat) {
   let out = [...list];
   if (cat !== "all") {
@@ -69,23 +68,19 @@ export default function Home() {
   const [search,         setSearch]         = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [wishlist,       setWishlist]       = useState([]);
-  const [showWishlist,   setShowWishlist]   = useState(false);
   const [userName,       setUserName]       = useState("");
+  const [unreadCount,    setUnreadCount]    = useState(0); // messages badge
 
-  // ✅ FIX: Refs to avoid stale closures inside async callbacks
   const searchRef   = useRef("");
   const categoryRef = useRef("all");
 
   useFocusEffect(
     useCallback(() => {
-      setShowWishlist(false);
-
       AsyncStorage.getItem("user").then((raw) => {
         if (raw) {
           try {
             const u = JSON.parse(raw);
-            const name =
-              u.username || u.name || u.email?.split("@")[0] || "there";
+            const name = u.username || u.name || u.email?.split("@")[0] || "there";
             setUserName(name.split(" ")[0]);
           } catch {
             setUserName("there");
@@ -95,14 +90,22 @@ export default function Home() {
 
       fetchItems();
       fetchWishlist();
+      fetchUnread();
     }, [])
   );
+
+  const fetchUnread = async () => {
+    try {
+      const { chatAPI } = require("../../services/api");
+      const res = await chatAPI.getUnread();
+      if (res.success) setUnreadCount(res.count || 0);
+    } catch {}
+  };
 
   const fetchWishlist = async () => {
     try {
       const res = await userAPI.getWishlist();
       if (res.success) {
-        // ✅ FIX: Normalize all IDs to strings
         setWishlist((res.data || []).map((id) => String(id)));
       }
     } catch (e) {
@@ -115,7 +118,6 @@ export default function Home() {
       const data = await itemAPI.getItems();
       const list = Array.isArray(data) ? data : data.data || data.items || [];
       setItems(list);
-      // ✅ FIX: Use refs so we always have fresh filter values
       setFiltered(applyFilters(list, searchRef.current, categoryRef.current));
     } catch (e) {
       console.log("fetch error", e);
@@ -138,14 +140,11 @@ export default function Home() {
   };
 
   const toggleWishlist = async (id) => {
-    const strId = String(id); // ✅ FIX: always compare as strings
+    const strId = String(id);
     const isWishlisted = wishlist.includes(strId);
-
-    // Optimistic update
     setWishlist((prev) =>
       isWishlisted ? prev.filter((x) => x !== strId) : [...prev, strId]
     );
-
     try {
       const res = await userAPI.toggleWishlist(strId);
       if (res.success && res.wishlist) {
@@ -153,14 +152,12 @@ export default function Home() {
       }
     } catch (e) {
       console.log("wishlist toggle error", e);
-      // Rollback on failure
       setWishlist((prev) =>
         isWishlisted ? [...prev, strId] : prev.filter((x) => x !== strId)
       );
     }
   };
 
-  // ✅ FIX: Route to "itemDetail" (camelCase) — matches your actual file app/itemDetail.jsx
   const openItem = (item) => {
     try {
       router.push({
@@ -172,9 +169,6 @@ export default function Home() {
     }
   };
 
-  const wishlistItems = items.filter((i) => wishlist.includes(String(i._id)));
-  const displayList   = showWishlist ? wishlistItems : filtered;
-
   const renderCard = ({ item }) => {
     const wishlisted = wishlist.includes(String(item._id));
     return (
@@ -184,18 +178,13 @@ export default function Home() {
         onPress={() => openItem(item)}
       >
         {item.image ? (
-          <Image
-            source={{ uri: item.image }}
-            style={styles.cardImage}
-            onError={(e) => console.log("image load error", e.nativeEvent.error)}
-          />
+          <Image source={{ uri: item.image }} style={styles.cardImage} />
         ) : (
           <View style={[styles.cardImage, styles.noImage]}>
             <Text style={{ fontSize: 32 }}>📦</Text>
           </View>
         )}
 
-        {/* Heart button */}
         <TouchableOpacity
           style={[styles.heartBtn, wishlisted && styles.heartBtnActive]}
           onPress={() => toggleWishlist(item._id)}
@@ -208,7 +197,6 @@ export default function Home() {
           />
         </TouchableOpacity>
 
-        {/* Sale / Rent badge */}
         <View style={[styles.badge, item.type === "rent" ? styles.badgeRent : styles.badgeSell]}>
           <Text style={styles.badgeText}>
             {item.type === "rent" ? "Rent" : "Sale"}
@@ -241,29 +229,28 @@ export default function Home() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.headerContainer}>
-        {/* Greeting row */}
+        {/* Greeting row — messages icon replaces wishlist pill */}
         <View style={styles.greetRow}>
           <View>
             <Text style={styles.greeting}>Hey {userName || "there"} 👋</Text>
             <Text style={styles.subGreeting}>Find something in your org</Text>
           </View>
 
-          {/* Wishlist pill */}
-          <TouchableOpacity
-            style={[styles.wishlistPill, showWishlist && styles.wishlistPillActive]}
-            onPress={() => setShowWishlist((v) => !v)}
-            activeOpacity={0.82}
-          >
-            <Ionicons
-              name={showWishlist ? "heart" : "heart-outline"}
-              size={17}
-              color={showWishlist ? "#fff" : "#e11d48"}
-              style={{ marginRight: 5 }}
-            />
-            <Text style={[styles.wishlistPillLabel, showWishlist && styles.wishlistPillLabelActive]}>
-              {showWishlist ? "All items" : "Wishlist"}
-            </Text>
-          </TouchableOpacity>
+          {/* Messages icon button */}
+        <TouchableOpacity
+        style={styles.msgBtn}
+        onPress={() => router.push("/inbox")}
+        activeOpacity={0.82}>
+        <Ionicons name="chatbubble-ellipses-outline" size={22} color="#111" />
+
+  {unreadCount > 0 && (
+    <View style={styles.unreadBadge}>
+      <Text style={styles.unreadBadgeText}>
+        {unreadCount > 9 ? "9+" : unreadCount}
+      </Text>
+    </View>
+  )}
+</TouchableOpacity>
         </View>
 
         {/* Search bar */}
@@ -309,22 +296,10 @@ export default function Home() {
             );
           })}
         </ScrollView>
-
-        {/* Wishlist mode header */}
-        {showWishlist && (
-          <View style={styles.sectionRow}>
-            <View style={styles.sectionLeft}>
-              <Ionicons name="heart" size={14} color="#e11d48" style={{ marginRight: 5 }} />
-              <Text style={styles.sectionTitle}>
-                Wishlist · {wishlistItems.length} saved
-              </Text>
-            </View>
-          </View>
-        )}
       </View>
 
       <FlatList
-        data={displayList}
+        data={filtered}
         keyExtractor={(item) => String(item._id)}
         renderItem={renderCard}
         numColumns={2}
@@ -341,19 +316,9 @@ export default function Home() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Ionicons
-              name={showWishlist ? "heart-outline" : "cube-outline"}
-              size={52}
-              color="#e5e7eb"
-            />
-            <Text style={styles.emptyTitle}>
-              {showWishlist ? "Nothing saved yet" : "No items found"}
-            </Text>
-            <Text style={styles.emptySub}>
-              {showWishlist
-                ? "Tap ♡ on any listing to save it here"
-                : "Be the first to list something!"}
-            </Text>
+            <Ionicons name="cube-outline" size={52} color="#e5e7eb" />
+            <Text style={styles.emptyTitle}>No items found</Text>
+            <Text style={styles.emptySub}>Be the first to list something!</Text>
           </View>
         }
       />
@@ -376,20 +341,21 @@ const styles = StyleSheet.create({
   greeting:    { fontSize: 20, fontWeight: "700", color: "#111" },
   subGreeting: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
 
-  wishlistPill: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 13, paddingVertical: 9,
-    borderRadius: 22, borderWidth: 1.5, borderColor: "#fda4af",
-    backgroundColor: "#fff4f5",
-    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 6, elevation: 2,
+  // Messages icon button (replaces wishlist pill)
+  msgBtn: {
+    position: "relative",
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center", justifyContent: "center",
   },
-  wishlistPillActive: {
-    backgroundColor: "#e11d48", borderColor: "#e11d48",
-    shadowOpacity: 0.28,
+  unreadBadge: {
+    position: "absolute", top: 2, right: 2,
+    backgroundColor: "#e11d48", borderRadius: 8,
+    minWidth: 16, height: 16,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 3,
   },
-  wishlistPillLabel:       { fontSize: 13, fontWeight: "700", color: "#e11d48" },
-  wishlistPillLabelActive: { color: "#fff" },
+  unreadBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
 
   searchRow: {
     flexDirection: "row", alignItems: "center",
@@ -407,15 +373,6 @@ const styles = StyleSheet.create({
     position: "absolute", bottom: 0, left: 10, right: 10,
     height: 2.5, backgroundColor: "#f59e0b", borderRadius: 2,
   },
-
-  sectionRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: "#fce7ea",
-    backgroundColor: "#fff9fa",
-  },
-  sectionLeft:  { flexDirection: "row", alignItems: "center" },
-  sectionTitle: { fontSize: 13, color: "#e11d48", fontWeight: "700" },
 
   listContent: { padding: 12, paddingTop: 8 },
   row:         { justifyContent: "space-between", marginBottom: 12 },

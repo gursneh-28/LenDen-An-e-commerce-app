@@ -1,14 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from 'react-native';
 
-const API_BASE_URL = Platform.OS === 'web'
-  ? "http://localhost:5000/api"
-  : "http://172.16.59.127:5000/api";
+const API_BASE_URL = "https://lenden-an-e-commerce-app.onrender.com/api";
+export const SOCKET_URL = "https://lenden-an-e-commerce-app.onrender.com";
 
-export const SOCKET_URL = Platform.OS === "web"
-  ? "http://localhost:5000"
-  : "http://172.16.59.127:5000";
-   
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
 }

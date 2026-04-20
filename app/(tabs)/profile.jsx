@@ -87,7 +87,6 @@ function EmptyState({ icon, text, btnText, onPress }) {
 
 // ─── Wishlist Modal ────────────────────────────────────────────────────────────
 function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, router }) {
-  // ✅ FIX: normalize IDs to strings for comparison
   const wishlisted = allItems.filter((i) => wishlistIds.includes(String(i._id)));
 
   const renderCard = ({ item }) => (
@@ -96,7 +95,6 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
       activeOpacity={0.88}
       onPress={() => {
         onClose();
-        // ✅ FIX: correct route — matches app/itemDetail.jsx
         router.push({
           pathname: "/itemDetail",
           params: { item: JSON.stringify(item) },
@@ -226,7 +224,6 @@ function EditItemModal({ item, visible, onClose, onSave }) {
       <View style={m.overlay}>
         <View style={m.sheet}>
           <Text style={m.title}>Edit listing</Text>
-
           <Text style={m.label}>
             Product Name <Text style={{ color: "#ef4444" }}>*</Text>
           </Text>
@@ -238,7 +235,6 @@ function EditItemModal({ item, visible, onClose, onSave }) {
             placeholderTextColor="#9ca3af"
             maxLength={80}
           />
-
           <Text style={m.label}>
             Description{" "}
             <Text style={{ color: "#9ca3af", fontWeight: "400", fontSize: 11 }}>
@@ -253,7 +249,6 @@ function EditItemModal({ item, visible, onClose, onSave }) {
             placeholder="Condition, details…"
             placeholderTextColor="#9ca3af"
           />
-
           <Text style={m.label}>Price (₹)</Text>
           <TextInput
             style={m.input}
@@ -263,7 +258,6 @@ function EditItemModal({ item, visible, onClose, onSave }) {
             placeholder="0.00"
             placeholderTextColor="#9ca3af"
           />
-
           <View style={m.btnRow}>
             <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
               <Text style={m.cancelText}>Cancel</Text>
@@ -587,9 +581,6 @@ export default function Profile() {
   const [editingReq,      setEditingReq]      = useState(null);
   const [editReqVisible,  setEditReqVisible]  = useState(false);
 
-  // ✅ FIX: Separated fetchAll — removed getWishlist() from Promise.all
-  // to fix the "Already read" error. Wishlist is now fetched separately AFTER
-  // the main Promise.all resolves. Also removed Alert.alert from catch block.
   const fetchAll = useCallback(async () => {
     try {
       const [u, allItemsRes, itemsRes, reqsRes, myOrdersRes, sellingOrdersRes] =
@@ -602,7 +593,6 @@ export default function Profile() {
           orderAPI.getSellingOrders(),
         ]);
 
-      // ✅ FIX: set user with name fallback
       setUser(u);
 
       const orgItems = Array.isArray(allItemsRes)
@@ -615,8 +605,6 @@ export default function Profile() {
       if (myOrdersRes.success)      setMyOrders(myOrdersRes.data     || []);
       if (sellingOrdersRes.success) setIncoming(sellingOrdersRes.data || []);
 
-      // ✅ FIX: fetch wishlist SEPARATELY after Promise.all finishes
-      // This prevents the "Already read" body stream error
       try {
         const wishlistRes = await userAPI.getWishlist();
         if (wishlistRes.success) {
@@ -627,12 +615,9 @@ export default function Profile() {
           setWishlistIds(cleaned);
         }
       } catch (wErr) {
-        // Wishlist failing shouldn't crash the whole profile
         console.log("wishlist fetch error:", wErr.message);
       }
-
     } catch (e) {
-      // ✅ FIX: log error instead of Alert — Alert was showing "Already read" popup
       console.log("fetchAll error:", e.message);
     } finally {
       setLoading(false);
@@ -642,22 +627,18 @@ export default function Profile() {
 
   useFocusEffect(useCallback(() => { fetchAll(); }, [fetchAll]));
 
-  // ✅ FIX: normalize IDs to strings throughout
   const handleWishlistToggle = async (itemId) => {
     const strId = String(itemId);
     const isIn  = wishlistIds.includes(strId);
-
     setWishlistIds((prev) =>
       isIn ? prev.filter((x) => x !== strId) : [...prev, strId]
     );
-
     try {
       const res = await userAPI.toggleWishlist(strId);
       if (res.success && res.wishlist) {
         setWishlistIds(res.wishlist.map(String));
       }
     } catch {
-      // rollback
       setWishlistIds((prev) =>
         isIn ? [...prev, strId] : prev.filter((x) => x !== strId)
       );
@@ -724,12 +705,10 @@ export default function Profile() {
     { key: "requests", label: `Requests (${myRequests.length})` },
   ];
 
-  // ✅ FIX: normalize wishlistIds for the stats count
   const wishlistCount = allItems.filter((i) =>
     wishlistIds.includes(String(i._id))
   ).length;
 
-  // ✅ FIX: safe user display name with fallbacks
   const displayName  = user?.username || user?.name || user?.email?.split("@")[0] || "User";
   const avatarLetter = displayName[0]?.toUpperCase() || "U";
 
@@ -745,25 +724,19 @@ export default function Profile() {
           />
         }
       >
-        {/* Header */}
+        {/* ── Header — CHANGE 1: logout button removed, only wishlist heart remains ── */}
         <View style={s.header}>
           <View style={s.coverStrip} />
           <View style={s.avatarRow}>
             <View style={s.avatar}>
-              {/* ✅ FIX: uses avatarLetter which is always safe */}
               <Text style={s.avatarText}>{avatarLetter}</Text>
             </View>
-            <View style={s.headerActions}>
-              <TouchableOpacity onPress={() => setShowWishlist(true)} style={s.simpleHeart}>
-                <Ionicons name="heart" size={22} color="#e11d48" />
-              </TouchableOpacity>
-              <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
-                <Text style={s.logoutBtnText}>Log out</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Only the wishlist heart icon here now */}
+            <TouchableOpacity onPress={() => setShowWishlist(true)} style={s.heartIconBtn}>
+              <Ionicons name="heart" size={22} color="#e11d48" />
+            </TouchableOpacity>
           </View>
 
-          {/* ✅ FIX: shows real name with proper fallbacks */}
           <Text style={s.userName}>{displayName}</Text>
           <Text style={s.userEmail}>{user?.email}</Text>
           {!!user?.org && <Text style={s.userOrg}>{user.org}</Text>}
@@ -787,11 +760,7 @@ export default function Profile() {
         </View>
 
         {/* Tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={s.tabsWrap}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsWrap}>
           <View style={s.tabs}>
             {TABS.map(({ key, label }) => (
               <TouchableOpacity
@@ -835,6 +804,13 @@ export default function Profile() {
             />
           )}
         </View>
+
+        {/* ── CHANGE 2: Logout button at the bottom center ── */}
+        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+          <Text style={s.logoutBtnText}>Log out</Text>
+        </TouchableOpacity>
+
         <View style={{ height: 48 }} />
       </ScrollView>
 
@@ -883,14 +859,10 @@ const s = StyleSheet.create({
     backgroundColor: "#333", borderWidth: 3, borderColor: "#1a1a1a",
     justifyContent: "center", alignItems: "center", marginTop: -34,
   },
-  avatarText:    { fontSize: 26, color: "#fff", fontWeight: "700" },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 6 },
-  simpleHeart:   { padding: 6, justifyContent: "center", alignItems: "center" },
-  logoutBtn:     {
-    borderWidth: 0.5, borderColor: "#555", borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 7,
-  },
-  logoutBtnText: { color: "#9ca3af", fontSize: 12, fontWeight: "600" },
+  avatarText: { fontSize: 26, color: "#fff", fontWeight: "700" },
+
+  // Only the heart icon remains in the header top-right
+  heartIconBtn: { padding: 8, paddingBottom: 6, justifyContent: "center", alignItems: "center" },
 
   userName:  { fontSize: 20, fontWeight: "700", color: "#fff", paddingHorizontal: 20, marginTop: 10 },
   userEmail: {
@@ -953,6 +925,22 @@ const s = StyleSheet.create({
   reqTop:   { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 3, gap: 8 },
   reqWork:  { fontSize: 13, fontWeight: "600", color: "#1a1a1a", flex: 1, lineHeight: 18 },
   reqPrice: { fontSize: 14, fontWeight: "700", color: "#16a34a", flexShrink: 0 },
+
+  // Logout button — centered at the bottom of all content
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 40,
+    marginTop: 24,
+    marginBottom: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+    backgroundColor: "#fff",
+  },
+  logoutBtnText: { color: "#ef4444", fontWeight: "700", fontSize: 15 },
 
   empty:        { alignItems: "center", paddingVertical: 44, gap: 8 },
   emptyIcon:    { fontSize: 38 },
