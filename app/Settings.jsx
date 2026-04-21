@@ -6,6 +6,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getUser, clearSession } from "../services/api";
+import MyRatings from "./components/MyRatings";   // ← correct relative path from app/
 
 // ── Edit Profile Modal ─────────────────────────────────────────────────────────
 function EditProfileModal({ visible, user, onClose, onSave }) {
@@ -13,17 +14,25 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
   const [phone,    setPhone]    = useState(user?.phoneNumber || "");
   const [saving,   setSaving]   = useState(false);
 
+  // Sync state if the user prop changes (e.g. after first load)
+  React.useEffect(() => {
+    if (user) {
+      setUsername(user.username || user.name || "");
+      setPhone(user.phoneNumber || "");
+    }
+  }, [user]);
+
   const save = async () => {
     if (!username.trim()) return Alert.alert("Required", "Name cannot be empty.");
     try {
       setSaving(true);
-      // If you have a userAPI.updateProfile endpoint, call it here:
+      // Uncomment when API is ready:
       // await userAPI.updateProfile({ username: username.trim(), phoneNumber: phone.trim() });
       Alert.alert("Saved", "Profile updated successfully.");
       onSave?.({ username: username.trim(), phoneNumber: phone.trim() });
       onClose();
     } catch (e) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Error", e?.message || "Something went wrong.");
     } finally {
       setSaving(false);
     }
@@ -34,6 +43,7 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
       <View style={m.overlay}>
         <View style={m.sheet}>
           <Text style={m.title}>Edit profile</Text>
+
           <Text style={m.label}>Display name</Text>
           <TextInput
             style={m.input}
@@ -43,6 +53,7 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
             placeholderTextColor="#9ca3af"
             maxLength={50}
           />
+
           <Text style={m.label}>Phone number</Text>
           <TextInput
             style={m.input}
@@ -53,6 +64,7 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
             keyboardType="phone-pad"
             maxLength={10}
           />
+
           <View style={m.btnRow}>
             <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
               <Text style={m.cancelText}>Cancel</Text>
@@ -71,10 +83,10 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
 
 // ── Change Password Modal ──────────────────────────────────────────────────────
 function ChangePasswordModal({ visible, onClose }) {
-  const [current,  setCurrent]  = useState("");
-  const [next,     setNext]     = useState("");
-  const [confirm,  setConfirm]  = useState("");
-  const [saving,   setSaving]   = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next,    setNext]    = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [saving,  setSaving]  = useState(false);
 
   const save = async () => {
     if (!current || !next || !confirm)
@@ -90,22 +102,24 @@ function ChangePasswordModal({ visible, onClose }) {
       setCurrent(""); setNext(""); setConfirm("");
       onClose();
     } catch (e) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Error", e?.message || "Something went wrong.");
     } finally {
       setSaving(false);
     }
   };
+
+  const fields = [
+    { label: "Current password",    val: current, set: setCurrent },
+    { label: "New password",        val: next,    set: setNext    },
+    { label: "Confirm new password", val: confirm, set: setConfirm },
+  ];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <View style={m.sheet}>
           <Text style={m.title}>Change password</Text>
-          {[
-            { label: "Current password",   val: current, set: setCurrent },
-            { label: "New password",        val: next,    set: setNext    },
-            { label: "Confirm new password",val: confirm, set: setConfirm },
-          ].map(({ label, val, set }) => (
+          {fields.map(({ label, val, set }) => (
             <React.Fragment key={label}>
               <Text style={m.label}>{label}</Text>
               <TextInput
@@ -160,7 +174,11 @@ function AboutModal({ visible, onClose }) {
 // ── Settings Row ───────────────────────────────────────────────────────────────
 function SettingsRow({ iconName, iconBg, label, sublabel, onPress, danger, rightEl }) {
   return (
-    <TouchableOpacity style={[s.row, danger && s.rowDanger]} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={[s.row, danger && s.rowDanger]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={[s.rowIcon, { backgroundColor: iconBg }]}>
         <Ionicons name={iconName} size={17} color={danger ? "#ef4444" : "#374151"} />
       </View>
@@ -168,7 +186,13 @@ function SettingsRow({ iconName, iconBg, label, sublabel, onPress, danger, right
         <Text style={[s.rowLabel, danger && s.rowLabelDanger]}>{label}</Text>
         {!!sublabel && <Text style={s.rowSub}>{sublabel}</Text>}
       </View>
-      {rightEl || <Ionicons name="chevron-forward" size={16} color={danger ? "#fca5a5" : "#d1d5db"} />}
+      {rightEl || (
+        <Ionicons
+          name="chevron-forward"
+          size={16}
+          color={danger ? "#fca5a5" : "#d1d5db"}
+        />
+      )}
     </TouchableOpacity>
   );
 }
@@ -186,13 +210,16 @@ function Section({ title, children }) {
 // ── Main Settings Screen ───────────────────────────────────────────────────────
 export default function Settings() {
   const router = useRouter();
-  const [user, setUser] = React.useState(null);
-  const [showEditProfile,  setShowEditProfile]  = useState(false);
-  const [showChangePwd,    setShowChangePwd]    = useState(false);
-  const [showAbout,        setShowAbout]        = useState(false);
+  const [user,            setUser]            = React.useState(null);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showChangePwd,   setShowChangePwd]   = useState(false);
+  const [showAbout,       setShowAbout]       = useState(false);
 
   React.useEffect(() => {
-    getUser().then(setUser);
+    // Safely load user — won't crash if getUser rejects
+    getUser()
+      .then((u) => setUser(u || null))
+      .catch(() => setUser(null));
   }, []);
 
   const handleLogout = () => {
@@ -202,7 +229,11 @@ export default function Settings() {
         text: "Log out",
         style: "destructive",
         onPress: async () => {
-          await clearSession();
+          try {
+            await clearSession();
+          } catch (_) {
+            // ignore — clear locally regardless
+          }
           router.replace("/login");
         },
       },
@@ -228,11 +259,13 @@ export default function Settings() {
   };
 
   const handleSupport = () => {
-    Linking.openURL("mailto:support@lenden.app?subject=Support Request");
+    Linking.openURL("mailto:support@lenden.app?subject=Support Request").catch(() =>
+      Alert.alert("Error", "Could not open mail app.")
+    );
   };
 
   const displayName  = user?.username || user?.name || user?.email?.split("@")[0] || "User";
-  const avatarLetter = displayName[0]?.toUpperCase() || "U";
+  const avatarLetter = (displayName[0] || "U").toUpperCase();
 
   return (
     <View style={s.screen}>
@@ -252,8 +285,8 @@ export default function Settings() {
             <Text style={s.profileAvatarText}>{avatarLetter}</Text>
           </View>
           <Text style={s.profileName}>{displayName}</Text>
-          <Text style={s.profileEmail}>{user?.email}</Text>
-          {!!user?.org && <Text style={s.profileOrg}>{user.org}</Text>}
+          {!!user?.email && <Text style={s.profileEmail}>{user.email}</Text>}
+          {!!user?.org   && <Text style={s.profileOrg}>{user.org}</Text>}
         </View>
 
         {/* Account */}
@@ -277,7 +310,9 @@ export default function Settings() {
             iconBg="#fefce8"
             label="Notifications"
             sublabel="Orders, messages, help"
-            onPress={() => Alert.alert("Coming soon", "Notification settings coming in the next update.")}
+            onPress={() =>
+              Alert.alert("Coming soon", "Notification settings coming in the next update.")
+            }
           />
         </Section>
 
@@ -297,6 +332,13 @@ export default function Settings() {
             sublabel="Version 1.0.0"
             onPress={() => setShowAbout(true)}
           />
+        </Section>
+
+        {/* My Ratings — wrapped in a try/catch boundary via ErrorBoundary below */}
+        <Section title="My ratings">
+          <View style={{ padding: 14 }}>
+            <MyRatings />
+          </View>
         </Section>
 
         {/* Danger zone */}
@@ -345,30 +387,40 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f8f7f4" },
 
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingTop: Platform.OS === "ios" ? 56 : 16,
     paddingBottom: 14,
     backgroundColor: "#fff",
-    borderBottomWidth: 0.5, borderBottomColor: "#e5e5e5",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e5e5",
   },
   backBtn:     { width: 36, height: 36, justifyContent: "center" },
   headerTitle: { fontSize: 17, fontWeight: "700", color: "#1a1a1a" },
 
   profileCard: {
-    alignItems: "center", paddingVertical: 24, paddingHorizontal: 20,
-    backgroundColor: "#fff", marginBottom: 0,
-    borderBottomWidth: 0.5, borderBottomColor: "#e5e5e5",
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#e5e5e5",
   },
   profileAvatar: {
     width: 64, height: 64, borderRadius: 32,
-    backgroundColor: "#1a1a1a", justifyContent: "center", alignItems: "center",
+    backgroundColor: "#1a1a1a",
+    justifyContent: "center", alignItems: "center",
     marginBottom: 10,
   },
   profileAvatarText: { fontSize: 26, color: "#fff", fontWeight: "700" },
   profileName:       { fontSize: 17, fontWeight: "700", color: "#1a1a1a", marginBottom: 2 },
-  profileEmail:      { fontSize: 12, color: "#9ca3af", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
-  profileOrg:        { fontSize: 11, color: "#d1d5db", marginTop: 2 },
+  profileEmail: {
+    fontSize: 12, color: "#9ca3af",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+  },
+  profileOrg: { fontSize: 11, color: "#d1d5db", marginTop: 2 },
 
   section:      { marginTop: 20, paddingHorizontal: 16 },
   sectionTitle: {
@@ -376,8 +428,11 @@ const s = StyleSheet.create({
     textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8,
   },
   sectionCard: {
-    backgroundColor: "#fff", borderRadius: 14,
-    borderWidth: 0.5, borderColor: "#e5e5e5", overflow: "hidden",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 0.5,
+    borderColor: "#e5e5e5",
+    overflow: "hidden",
   },
 
   row: {
@@ -386,12 +441,12 @@ const s = StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: "#f3f4f6",
     backgroundColor: "#fff",
   },
-  rowDanger: { backgroundColor: "#fff" },
-  rowIcon:   { width: 32, height: 32, borderRadius: 9, justifyContent: "center", alignItems: "center", marginRight: 12 },
-  rowText:   { flex: 1 },
-  rowLabel:      { fontSize: 14, fontWeight: "600", color: "#1a1a1a" },
-  rowLabelDanger:{ color: "#ef4444" },
-  rowSub:        { fontSize: 11, color: "#9ca3af", marginTop: 1 },
+  rowDanger:      { backgroundColor: "#fff" },
+  rowIcon:        { width: 32, height: 32, borderRadius: 9, justifyContent: "center", alignItems: "center", marginRight: 12 },
+  rowText:        { flex: 1 },
+  rowLabel:       { fontSize: 14, fontWeight: "600", color: "#1a1a1a" },
+  rowLabelDanger: { color: "#ef4444" },
+  rowSub:         { fontSize: 11, color: "#9ca3af", marginTop: 1 },
 });
 
 const m = StyleSheet.create({

@@ -2,8 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from 'react-native';
 
 // ─── Toggle this to test locally ─────────────────────────────────────────────
-const LOCAL_MODE = false;  // set true to use local backend, false for Render
-const LOCAL_IP   = "172.16.61.155"; // your PC's LAN IP (run `ipconfig` to check)
+const LOCAL_MODE = false;
+const LOCAL_IP   = "172.16.61.155";
 const LOCAL_PORT = 5000;
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -146,6 +146,34 @@ export const chatAPI = {
   getUnread:        ()   => apiRequest("/chat/unread"),
 };
 
+// ── Rating API ────────────────────────────────────────────────────────────────
+// Backend routes (from ratingRoutes.js):
+//   POST   /ratings/submit
+//   GET    /ratings/mine
+//   GET    /ratings/user/:email
+//   GET    /ratings/summary/:email          ← param, NOT query string
+//   GET    /ratings/check/:contextId/:contextType  ← two params, NOT query string
+export const ratingAPI = {
+  // Submit a new rating
+  submit: (data) => apiRequest("/ratings/submit", "POST", data),
+
+  // Ratings I received + summary (for Settings → My Ratings)
+  getMyRatings: () => apiRequest("/ratings/mine"),
+
+  // All ratings for any user by email (used if needed elsewhere)
+  getUserRatings: (email) => apiRequest(`/ratings/user/${encodeURIComponent(email)}`),
+
+  // Rating summary (average + count) for a user — shown on itemDetail seller card
+  // Backend route: GET /ratings/summary/:email
+  getUserSummary: (email) => apiRequest(`/ratings/summary/${encodeURIComponent(email)}`),
+
+  // Check if current user already rated a specific context — used in help.jsx
+  // Backend route: GET /ratings/check/:contextId/:contextType
+  checkRated: (contextId, contextType) =>
+    apiRequest(`/ratings/check/${contextId}/${contextType}`),
+};
+
+// ── Room ID helpers ───────────────────────────────────────────────────────────
 export function itemRoomId(itemId, emailA, emailB) {
   const sorted = [emailA, emailB].sort();
   return `item_${itemId}_${sorted[0]}_${sorted[1]}`;

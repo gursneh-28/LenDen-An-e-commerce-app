@@ -4,8 +4,9 @@ import {
   StyleSheet, Platform, Dimensions, Alert, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getUser, itemRoomId, userAPI } from "../services/api";
+import { getUser, itemRoomId, userAPI, ratingAPI } from "../services/api";
 import { Ionicons } from "@expo/vector-icons";
+import { RatingBadge } from "./components/StarRating";  // named export — must match StarRating.jsx
 
 const { width: W } = Dimensions.get("window");
 
@@ -17,35 +18,50 @@ function formatDate(iso) {
 export default function ItemDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [imgIndex, setImgIndex] = useState(0);
-  const [isWishlisted, setIsWishlisted] = useState(false);
-  const [wishlistLoading, setWishlistLoading] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  // Parse item — memoized so it's a stable reference (not re-parsed on every render)
+  const [imgIndex,        setImgIndex]        = useState(0);
+  const [isWishlisted,    setIsWishlisted]    = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
+  const [loading,         setLoading]         = useState(true);
+  const [sellerRating,    setSellerRating]    = useState({ average: 0, count: 0 });
+
+  // Parse item — memoized so it's stable across renders
   const item = useMemo(() => {
     try {
       return params.item ? JSON.parse(params.item) : null;
     } catch (e) {
-      console.log("Failed to parse item param:", e);
+      console.warn("Failed to parse item param:", e);
       return null;
     }
   }, [params.item]);
 
-  // Check wishlist status once on mount (when item._id is known)
+  // Fetch seller rating once item is available
   useEffect(() => {
-    if (item?._id) checkWishlistStatus();
-  }, [item?._id]);
+    if (!item?.uploadedBy) return;
+    ratingAPI
+      .getUserSummary(item.uploadedBy)
+      .then((res) => { if (res?.success && res.data) setSellerRating(res.data); })
+      .catch(() => {}); // silently ignore — UI handles zero-rating state
+  }, [item?.uploadedBy]);
+
+  // Check wishlist status once item._id is known
+  useEffect(() => {
+    if (item?._id) {
+      checkWishlistStatus();
+    } else {
+      setLoading(false); // no item — stop spinner
+    }
+  }, [item?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkWishlistStatus = async () => {
     try {
       const res = await userAPI.getWishlist();
-      if (res.success && res.data) {
-        const wishlistIds = res.data.map(id => String(id));
-        setIsWishlisted(wishlistIds.includes(String(item._id)));
+      if (res?.success && Array.isArray(res.data)) {
+        const ids = res.data.map((id) => String(id));
+        setIsWishlisted(ids.includes(String(item._id)));
       }
     } catch (e) {
-      console.log("check wishlist error:", e);
+      console.warn("checkWishlist error:", e);
     } finally {
       setLoading(false);
     }
@@ -54,28 +70,29 @@ export default function ItemDetail() {
   const toggleWishlist = async () => {
     if (wishlistLoading || !item) return;
 
-    setWishlistLoading(true);
     const wasWishlisted = isWishlisted;
-    setIsWishlisted(!wasWishlisted); // optimistic
+    setWishlistLoading(true);
+    setIsWishlisted(!wasWishlisted); // optimistic update
 
     try {
       const res = await userAPI.toggleWishlist(item._id);
-      if (res.success) {
-        if (res.wishlist) {
-          setIsWishlisted(res.wishlist.map(id => String(id)).includes(String(item._id)));
+      if (res?.success) {
+        if (Array.isArray(res.wishlist)) {
+          setIsWishlisted(res.wishlist.map((id) => String(id)).includes(String(item._id)));
         }
       } else {
-        setIsWishlisted(wasWishlisted);
+        setIsWishlisted(wasWishlisted); // rollback
       }
     } catch (e) {
-      console.log("toggle wishlist error:", e);
-      setIsWishlisted(wasWishlisted);
-      Alert.alert("Error", e.message || "Failed to update wishlist");
+      console.warn("toggleWishlist error:", e);
+      setIsWishlisted(wasWishlisted); // rollback
+      Alert.alert("Error", e?.message || "Failed to update wishlist");
     } finally {
       setWishlistLoading(false);
     }
   };
 
+  // ── Guard: no item ────────────────────────────────────────────────────────
   if (!item) {
     return (
       <View style={s.centered}>
@@ -89,6 +106,16 @@ export default function ItemDetail() {
     );
   }
 
+  // ── Guard: loading wishlist status ────────────────────────────────────────
+  if (loading) {
+    return (
+      <View style={s.centered}>
+        <ActivityIndicator size="large" color="#e11d48" />
+      </View>
+    );
+  }
+
+  // ── Derived values ────────────────────────────────────────────────────────
   const images = item.images?.length
     ? item.images
     : item.image
@@ -97,6 +124,10 @@ export default function ItemDetail() {
 
   const isRent = item.type === "rent";
 
+  const sellerInitial =
+    (item.uploaderName || item.uploadedBy || "?")[0]?.toUpperCase() || "?";
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChat = async () => {
     try {
       const user = await getUser();
@@ -118,7 +149,7 @@ export default function ItemDetail() {
         params: { conv: JSON.stringify(conv), myEmail: user.email },
       });
     } catch (e) {
-      console.log("handleChat error:", e);
+      console.warn("handleChat error:", e);
       Alert.alert("Error", "Could not start chat");
     }
   };
@@ -130,17 +161,7 @@ export default function ItemDetail() {
     });
   };
 
-  const sellerInitial =
-    (item.uploaderName || item.uploadedBy || "?")[0]?.toUpperCase() || "?";
-
-  if (loading) {
-    return (
-      <View style={s.centered}>
-        <ActivityIndicator size="large" color="#e11d48" />
-      </View>
-    );
-  }
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={s.screen}>
       {/* Back button */}
@@ -148,19 +169,19 @@ export default function ItemDetail() {
         <Text style={s.backBtnText}>←</Text>
       </TouchableOpacity>
 
-      {/* Wishlist Heart Button */}
-      <TouchableOpacity 
-        style={s.wishlistBtn} 
+      {/* Wishlist heart button */}
+      <TouchableOpacity
+        style={s.wishlistBtn}
         onPress={toggleWishlist}
         disabled={wishlistLoading}
       >
         {wishlistLoading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <Ionicons 
-            name={isWishlisted ? "heart" : "heart-outline"} 
-            size={24} 
-            color={isWishlisted ? "#e11d48" : "#fff"} 
+          <Ionicons
+            name={isWishlisted ? "heart" : "heart-outline"}
+            size={24}
+            color={isWishlisted ? "#e11d48" : "#fff"}
           />
         )}
       </TouchableOpacity>
@@ -186,6 +207,7 @@ export default function ItemDetail() {
           )}
         </ScrollView>
 
+        {/* Dot indicators */}
         {images.length > 1 && (
           <View style={s.dots}>
             {images.map((_, i) => (
@@ -195,10 +217,9 @@ export default function ItemDetail() {
         )}
 
         <View style={s.body}>
-          {!!item.name && (
-            <Text style={s.name}>{item.name}</Text>
-          )}
+          {!!item.name && <Text style={s.name}>{item.name}</Text>}
 
+          {/* Price + type pill */}
           <View style={s.priceRow}>
             <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
             <View style={[s.pill, isRent ? s.pillRent : s.pillSell]}>
@@ -212,6 +233,7 @@ export default function ItemDetail() {
             <Text style={s.desc}>{item.description}</Text>
           )}
 
+          {/* Availability (rent only) */}
           {isRent && item.availability?.length > 0 && (
             <View style={s.section}>
               <Text style={s.sectionTitle}>Availability</Text>
@@ -223,12 +245,19 @@ export default function ItemDetail() {
             </View>
           )}
 
+          {/* Seller card */}
           <View style={s.sellerCard}>
             <View style={s.sellerAvatar}>
               <Text style={s.sellerAvatarText}>{sellerInitial}</Text>
             </View>
             <View style={s.sellerInfo}>
               <Text style={s.sellerName}>{item.uploaderName || "Seller"}</Text>
+              {/* RatingBadge handles zero-count gracefully */}
+              <RatingBadge
+                rating={sellerRating.average}
+                count={sellerRating.count}
+                style={{ marginTop: 4 }}
+              />
               <Text style={s.sellerEmail}>{item.uploadedBy}</Text>
               {!!item.uploaderPhone && (
                 <Text style={s.sellerPhone}>📞 {item.uploaderPhone}</Text>
@@ -236,6 +265,7 @@ export default function ItemDetail() {
             </View>
           </View>
 
+          {/* Action buttons */}
           <TouchableOpacity style={s.chatBtn} onPress={handleChat}>
             <Text style={s.chatBtnText}>💬  Chat with seller</Text>
           </TouchableOpacity>
@@ -251,6 +281,7 @@ export default function ItemDetail() {
   );
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen:   { flex: 1, backgroundColor: "#fff" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -273,11 +304,8 @@ const s = StyleSheet.create({
     right: 16,
     zIndex: 10,
     backgroundColor: "rgba(0,0,0,0.4)",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    width: 40, height: 40, borderRadius: 20,
+    justifyContent: "center", alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -289,9 +317,9 @@ const s = StyleSheet.create({
   noImage:     { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" },
   noImageText: { fontSize: 48 },
 
-  dots:     { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: -16, marginBottom: 8 },
-  dot:      { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(0,0,0,0.25)" },
-  dotActive:{ width: 18, backgroundColor: "#111" },
+  dots:      { flexDirection: "row", justifyContent: "center", gap: 5, marginTop: -16, marginBottom: 8 },
+  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(0,0,0,0.25)" },
+  dotActive: { width: 18, backgroundColor: "#111" },
 
   body: { padding: 20 },
 
@@ -324,10 +352,7 @@ const s = StyleSheet.create({
     backgroundColor: "#f8f8f8", borderRadius: 16,
     padding: 14, marginBottom: 18,
   },
-  sellerAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#111", justifyContent: "center", alignItems: "center",
-  },
+  sellerAvatar:     { width: 44, height: 44, borderRadius: 22, backgroundColor: "#111", justifyContent: "center", alignItems: "center" },
   sellerAvatarText: { color: "#fff", fontSize: 17, fontWeight: "700" },
   sellerInfo:       { flex: 1 },
   sellerName:       { fontSize: 14, fontWeight: "700", color: "#111" },

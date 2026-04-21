@@ -8,6 +8,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { itemAPI, requestAPI, orderAPI, userAPI, getUser, clearSession } from "../../services/api";
+import RatingModal from "../components/RatingModal";
+import { ratingAPI } from "../../services/api";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_W = (SCREEN_WIDTH - 48) / 2;
@@ -408,7 +410,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
 }
 
 // ─── Tab: Buying ───────────────────────────────────────────────────────────────
-function BuyingTab({ myOrders, onOrderAction, router }) {
+function BuyingTab({ myOrders, onOrderAction, router, ratedOrderIds, setRatingTarget }) {
   if (myOrders.length === 0) {
     return <EmptyState icon="🛍️" text="No purchases yet" btnText="Browse listings" onPress={() => router.push("/(tabs)/home")} />;
   }
@@ -474,6 +476,16 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <Text style={s.metaText}>{formatDate(order.createdAt)}</Text>
                   <StatusPill status={order.status} />
                 </View>
+                {order.status === "completed" && !ratedOrderIds.has(order._id) && (
+                  <TouchableOpacity
+                    style={{ backgroundColor: "#fef9ee", borderRadius: 10, padding: 10, marginTop: 6, alignItems: "center", borderWidth: 1, borderColor: "#fde68a" }}
+                    onPress={() => setRatingTarget(order)}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#92400e" }}>
+                      ⭐  Rate your experience with {order.sellerName || "seller"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           ))}
@@ -523,6 +535,8 @@ export default function Profile() {
   const [refreshing,     setRefreshing]  = useState(false);
   const [tab,            setTab]         = useState("selling");
   const [showWishlist,   setShowWishlist]= useState(false);
+  const [ratedOrderIds,  setRatedOrderIds] = useState(new Set());
+  const [ratingTarget,   setRatingTarget] = useState(null);
 
   const [editingItem,     setEditingItem]     = useState(null);
   const [editItemVisible, setEditItemVisible] = useState(false);
@@ -552,6 +566,17 @@ export default function Profile() {
       if (reqsRes.success)          setMyRequests(reqsRes.data       || []);
       if (myOrdersRes.success)      setMyOrders(myOrdersRes.data     || []);
       if (sellingOrdersRes.success) setIncoming(sellingOrdersRes.data || []);
+
+      // Check which completed orders are already rated
+      const completedOrders = (myOrdersRes.data || []).filter((o) => o.status === "completed");
+      const ratedChecks = await Promise.all(
+        completedOrders.map(async (o) => {
+          const res = await ratingAPI.checkRated(o._id, "order").catch(() => ({ rated: false }));
+          return { id: o._id, rated: res.rated };
+        })
+      );
+      const ratedSet = new Set(ratedChecks.filter((r) => r.rated).map((r) => r.id));
+      setRatedOrderIds(ratedSet);
 
       try {
         const wishlistRes = await userAPI.getWishlist();
@@ -709,7 +734,13 @@ export default function Profile() {
             />
           )}
           {tab === "buying" && (
-            <BuyingTab myOrders={myOrders} onOrderAction={handleOrderAction} router={router} />
+            <BuyingTab
+              myOrders={myOrders}
+              onOrderAction={handleOrderAction}
+              router={router}
+              ratedOrderIds={ratedOrderIds}
+              setRatingTarget={setRatingTarget}
+            />
           )}
           {tab === "requests" && (
             <RequestsTab
@@ -748,11 +779,22 @@ export default function Profile() {
           onSave={fetchAll}
         />
       )}
+      {ratingTarget && (
+        <RatingModal
+          visible={!!ratingTarget}
+          onClose={() => setRatingTarget(null)}
+          onSubmitted={() => { setRatingTarget(null); fetchAll(); }}
+          ratedEmail={ratingTarget.sellerEmail}
+          ratedName={ratingTarget.sellerName}
+          contextId={ratingTarget._id}
+          contextType="order"
+          contextLabel={ratingTarget.itemDescription}
+        />
+      )}
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen:   { flex: 1, backgroundColor: "#f8f7f4" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
@@ -831,7 +873,7 @@ const s = StyleSheet.create({
   emptyBtn:     { backgroundColor: "#1a1a1a", borderRadius: 20, paddingHorizontal: 20, paddingVertical: 10, marginTop: 4 },
   emptyBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 });
-
+// These were in your original but got truncated in my response:
 const wl = StyleSheet.create({
   backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.48)" },
   sheet: {
