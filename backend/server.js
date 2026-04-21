@@ -7,6 +7,7 @@ const dotenv     = require("dotenv");
 const http       = require("http");
 const { Server } = require("socket.io");
 const jwt        = require("jsonwebtoken");
+const ratingRoutes = require("./routes/ratingRoutes");
 
 dotenv.config();
 
@@ -31,7 +32,8 @@ app.use("/api/items",    require("./routes/itemRoutes"));
 app.use("/api/requests", require("./routes/requestRoutes"));
 app.use("/api/orders",   require("./routes/orderRoutes"));
 app.use("/api/chat",     require("./routes/chatRoutes"));
-app.use("/api/user",     require("./routes/userRoutes")); // wishlist
+app.use("/api/user",     require("./routes/userRoutes")); 
+app.use("/api/ratings", require("./routes/ratingRoutes"));
 
 app.get("/", (req, res) => res.json({ message: "LenDen backend running" }));
 
