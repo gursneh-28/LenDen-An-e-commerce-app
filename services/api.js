@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from 'react-native';
 
 // ─── Toggle this to test locally ─────────────────────────────────────────────
-const LOCAL_MODE = true;  // set true to use local backend, false for Render
+const LOCAL_MODE = false;  // set true to use local backend, false for Render
 const LOCAL_IP   = "172.16.61.155"; // your PC's LAN IP (run `ipconfig` to check)
 const LOCAL_PORT = 5000;
 // ─────────────────────────────────────────────────────────────────────────────

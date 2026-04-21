@@ -163,7 +163,7 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
             <Text style={wl.emptySub}>
               Tap ♡ on any listing in the home feed to save it here
             </Text>
-            <TouchableOpacity style={wl.browseBtn} onPress={() => { onClose(); router.push("/(tabs)/home"); }}>
+            <TouchableOpacity style={wl.browseBtn} onPress={onClose}>
               <Text style={wl.browseBtnText}>Browse listings</Text>
             </TouchableOpacity>
           </View>
@@ -221,51 +221,49 @@ function EditItemModal({ item, visible, onClose, onSave }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={m.overlay}>
-        <View style={m.sheet}>
-          <Text style={m.title}>Edit listing</Text>
-          <Text style={m.label}>
+      <View style={mo.overlay}>
+        <View style={mo.sheet}>
+          <Text style={mo.title}>Edit listing</Text>
+          <Text style={mo.label}>
             Product Name <Text style={{ color: "#ef4444" }}>*</Text>
           </Text>
           <TextInput
-            style={m.input}
+            style={mo.input}
             value={name}
             onChangeText={setName}
             placeholder="e.g. Sony Headphones"
             placeholderTextColor="#9ca3af"
             maxLength={80}
           />
-          <Text style={m.label}>
+          <Text style={mo.label}>
             Description{" "}
-            <Text style={{ color: "#9ca3af", fontWeight: "400", fontSize: 11 }}>
-              (optional)
-            </Text>
+            <Text style={{ color: "#9ca3af", fontWeight: "400", fontSize: 11 }}>(optional)</Text>
           </Text>
           <TextInput
-            style={[m.input, m.ta]}
+            style={[mo.input, mo.ta]}
             value={description}
             onChangeText={setDescription}
             multiline
             placeholder="Condition, details…"
             placeholderTextColor="#9ca3af"
           />
-          <Text style={m.label}>Price (₹)</Text>
+          <Text style={mo.label}>Price (₹)</Text>
           <TextInput
-            style={m.input}
+            style={mo.input}
             value={price}
             onChangeText={setPrice}
             keyboardType="decimal-pad"
             placeholder="0.00"
             placeholderTextColor="#9ca3af"
           />
-          <View style={m.btnRow}>
-            <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
-              <Text style={m.cancelText}>Cancel</Text>
+          <View style={mo.btnRow}>
+            <TouchableOpacity style={mo.cancelBtn} onPress={onClose}>
+              <Text style={mo.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={m.saveBtn} onPress={save} disabled={saving}>
+            <TouchableOpacity style={mo.saveBtn} onPress={save} disabled={saving}>
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={m.saveText}>Save</Text>}
+                : <Text style={mo.saveText}>Save</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -304,35 +302,35 @@ function EditRequestModal({ item, visible, onClose, onSave }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={m.overlay}>
-        <View style={m.sheet}>
-          <Text style={m.title}>Edit request</Text>
-          <Text style={m.label}>Work description</Text>
+      <View style={mo.overlay}>
+        <View style={mo.sheet}>
+          <Text style={mo.title}>Edit request</Text>
+          <Text style={mo.label}>Work description</Text>
           <TextInput
-            style={[m.input, m.ta]}
+            style={[mo.input, mo.ta]}
             value={work}
             onChangeText={setWork}
             multiline
             placeholder="Describe the work…"
             placeholderTextColor="#9ca3af"
           />
-          <Text style={m.label}>Budget (₹)</Text>
+          <Text style={mo.label}>Budget (₹)</Text>
           <TextInput
-            style={m.input}
+            style={mo.input}
             value={price}
             onChangeText={setPrice}
             keyboardType="decimal-pad"
             placeholder="0.00"
             placeholderTextColor="#9ca3af"
           />
-          <View style={m.btnRow}>
-            <TouchableOpacity style={m.cancelBtn} onPress={onClose}>
-              <Text style={m.cancelText}>Cancel</Text>
+          <View style={mo.btnRow}>
+            <TouchableOpacity style={mo.cancelBtn} onPress={onClose}>
+              <Text style={mo.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={m.saveBtn} onPress={save} disabled={saving}>
+            <TouchableOpacity style={mo.saveBtn} onPress={save} disabled={saving}>
               {saving
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={m.saveText}>Save</Text>}
+                : <Text style={mo.saveText}>Save</Text>}
             </TouchableOpacity>
           </View>
         </View>
@@ -347,12 +345,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
     <>
       <Text style={s.secLabel}>My listings ({myItems.length})</Text>
       {myItems.length === 0 ? (
-        <EmptyState
-          icon="📦"
-          text="No listings yet"
-          btnText="+ Add listing"
-          onPress={() => router.push("/upload")}
-        />
+        <EmptyState icon="📦" text="No listings yet" btnText="+ Add listing" onPress={() => router.push("/upload")} />
       ) : (
         myItems.map((item) => (
           <View key={item._id} style={s.card}>
@@ -362,12 +355,8 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                 <TypePill type={item.type} />
                 <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
               </View>
-              {!!item.name && (
-                <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>
-              )}
-              {!!item.description && (
-                <Text style={s.desc} numberOfLines={2}>{item.description}</Text>
-              )}
+              {!!item.name && <Text style={s.cardName} numberOfLines={1}>{item.name}</Text>}
+              {!!item.description && <Text style={s.desc} numberOfLines={2}>{item.description}</Text>}
               <View style={s.actRow}>
                 <ActionBtn label="✏️ Edit"   variant="edit"   onPress={() => onEditItem(item)} />
                 <ActionBtn label="🗑 Delete" variant="delete" onPress={() => onDeleteItem(item._id, "item")} />
@@ -379,9 +368,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
 
       {incomingOrders.length > 0 && (
         <>
-          <Text style={[s.secLabel, { marginTop: 20 }]}>
-            Incoming orders ({incomingOrders.length})
-          </Text>
+          <Text style={[s.secLabel, { marginTop: 20 }]}>Incoming orders ({incomingOrders.length})</Text>
           {incomingOrders.map((order) => (
             <View key={order._id} style={s.card}>
               <ItemThumb item={order} style={s.cardImg} />
@@ -390,18 +377,14 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
-                {!!order.itemName && (
-                  <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>
-                )}
+                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>From: {order.buyerName || order.buyerEmail}</Text>
                   <StatusPill status={order.status} />
                 </View>
                 {order.rentStart && (
-                  <Text style={s.metaText}>
-                    {formatDate(order.rentStart)} → {formatDate(order.rentEnd)}
-                  </Text>
+                  <Text style={s.metaText}>{formatDate(order.rentStart)} → {formatDate(order.rentEnd)}</Text>
                 )}
                 {order.paymentStatus === "paid" && (
                   <Text style={[s.metaText, { color: "#15803d" }]}>💳 Payment received</Text>
@@ -413,12 +396,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
                   </View>
                 )}
                 {order.status === "confirmed" && (
-                  <ActionBtn
-                    label="✓ Mark completed"
-                    variant="confirm"
-                    style={{ marginTop: 6 }}
-                    onPress={() => onOrderAction(order._id, "completed")}
-                  />
+                  <ActionBtn label="✓ Mark completed" variant="confirm" style={{ marginTop: 6 }} onPress={() => onOrderAction(order._id, "completed")} />
                 )}
               </View>
             </View>
@@ -432,14 +410,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
 // ─── Tab: Buying ───────────────────────────────────────────────────────────────
 function BuyingTab({ myOrders, onOrderAction, router }) {
   if (myOrders.length === 0) {
-    return (
-      <EmptyState
-        icon="🛍️"
-        text="No purchases yet"
-        btnText="Browse listings"
-        onPress={() => router.push("/(tabs)/home")}
-      />
-    );
+    return <EmptyState icon="🛍️" text="No purchases yet" btnText="Browse listings" onPress={() => router.push("/(tabs)/home")} />;
   }
 
   const active = myOrders.filter((o) => !["completed", "cancelled"].includes(o.status));
@@ -458,27 +429,19 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
-                {!!order.itemName && (
-                  <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>
-                )}
+                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>Seller: {order.sellerName || order.sellerEmail}</Text>
                   <StatusPill status={order.status} />
                 </View>
                 {order.rentStart && (
-                  <Text style={s.metaText}>
-                    {formatDate(order.rentStart)} → {formatDate(order.rentEnd)}
-                  </Text>
+                  <Text style={s.metaText}>{formatDate(order.rentStart)} → {formatDate(order.rentEnd)}</Text>
                 )}
                 {order.paymentStatus === "paid" ? (
-                  <Text style={[s.metaText, { color: "#15803d", marginTop: 4 }]}>
-                    💳 Paid via Razorpay
-                  </Text>
+                  <Text style={[s.metaText, { color: "#15803d", marginTop: 4 }]}>💳 Paid via Razorpay</Text>
                 ) : order.status === "pending" ? (
-                  <Text style={[s.metaText, { color: "#b45309", marginTop: 4 }]}>
-                    ⏳ Awaiting seller confirmation
-                  </Text>
+                  <Text style={[s.metaText, { color: "#b45309", marginTop: 4 }]}>⏳ Awaiting seller confirmation</Text>
                 ) : null}
                 {order.status === "confirmed" && (
                   <View style={[s.actRow, { marginTop: 6 }]}>
@@ -487,19 +450,13 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   </View>
                 )}
                 {order.status === "pending" && (
-                  <ActionBtn
-                    label="Cancel request"
-                    variant="delete"
-                    style={{ marginTop: 6 }}
-                    onPress={() => onOrderAction(order._id, "cancelled")}
-                  />
+                  <ActionBtn label="Cancel request" variant="delete" style={{ marginTop: 6 }} onPress={() => onOrderAction(order._id, "cancelled")} />
                 )}
               </View>
             </View>
           ))}
         </>
       )}
-
       {past.length > 0 && (
         <>
           <Text style={[s.secLabel, { marginTop: 20 }]}>History ({past.length})</Text>
@@ -511,9 +468,7 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
                   <TypePill type={order.orderType === "rent" ? "rent" : "sell"} />
                   <Text style={s.price}>₹{order.itemPrice?.toLocaleString()}</Text>
                 </View>
-                {!!order.itemName && (
-                  <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>
-                )}
+                {!!order.itemName && <Text style={s.cardName} numberOfLines={1}>{order.itemName}</Text>}
                 <Text style={s.desc} numberOfLines={1}>{order.itemDescription}</Text>
                 <View style={s.cardMeta}>
                   <Text style={s.metaText}>{formatDate(order.createdAt)}</Text>
@@ -531,14 +486,7 @@ function BuyingTab({ myOrders, onOrderAction, router }) {
 // ─── Tab: Requests ─────────────────────────────────────────────────────────────
 function RequestsTab({ myRequests, onEdit, onDelete, router }) {
   if (myRequests.length === 0) {
-    return (
-      <EmptyState
-        icon="🙋"
-        text="No requests yet"
-        btnText="+ Post request"
-        onPress={() => router.push("/request")}
-      />
-    );
+    return <EmptyState icon="🙋" text="No requests yet" btnText="+ Post request" onPress={() => router.push("/request")} />;
   }
   return (
     <>
@@ -609,9 +557,7 @@ export default function Profile() {
         const wishlistRes = await userAPI.getWishlist();
         if (wishlistRes.success) {
           const validIds = orgItems.map((i) => String(i._id));
-          const cleaned = (wishlistRes.data || [])
-            .map(String)
-            .filter((id) => validIds.includes(id));
+          const cleaned  = (wishlistRes.data || []).map(String).filter((id) => validIds.includes(id));
           setWishlistIds(cleaned);
         }
       } catch (wErr) {
@@ -630,18 +576,12 @@ export default function Profile() {
   const handleWishlistToggle = async (itemId) => {
     const strId = String(itemId);
     const isIn  = wishlistIds.includes(strId);
-    setWishlistIds((prev) =>
-      isIn ? prev.filter((x) => x !== strId) : [...prev, strId]
-    );
+    setWishlistIds((prev) => isIn ? prev.filter((x) => x !== strId) : [...prev, strId]);
     try {
       const res = await userAPI.toggleWishlist(strId);
-      if (res.success && res.wishlist) {
-        setWishlistIds(res.wishlist.map(String));
-      }
+      if (res.success && res.wishlist) setWishlistIds(res.wishlist.map(String));
     } catch {
-      setWishlistIds((prev) =>
-        isIn ? [...prev, strId] : prev.filter((x) => x !== strId)
-      );
+      setWishlistIds((prev) => isIn ? [...prev, strId] : prev.filter((x) => x !== strId));
     }
   };
 
@@ -660,9 +600,7 @@ export default function Profile() {
               await requestAPI.deleteRequest(id);
               setMyRequests((p) => p.filter((r) => r._id !== id));
             }
-          } catch (e) {
-            Alert.alert("Error", e.message);
-          }
+          } catch (e) { Alert.alert("Error", e.message); }
         },
       },
     ]);
@@ -672,32 +610,10 @@ export default function Profile() {
     try {
       await orderAPI.updateStatus(orderId, newStatus);
       fetchAll();
-    } catch (e) {
-      Alert.alert("Error", e.message);
-    }
+    } catch (e) { Alert.alert("Error", e.message); }
   };
 
-  const handleLogout = () => {
-    Alert.alert("Log out", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log out",
-        style: "destructive",
-        onPress: async () => {
-          await clearSession();
-          router.replace("/login");
-        },
-      },
-    ]);
-  };
-
-  if (loading) {
-    return (
-      <View style={s.centered}>
-        <ActivityIndicator size="large" color="#1a1a1a" />
-      </View>
-    );
-  }
+  if (loading) return <View style={s.centered}><ActivityIndicator size="large" color="#1a1a1a" /></View>;
 
   const TABS = [
     { key: "selling",  label: `Selling (${myItems.length})`     },
@@ -705,12 +621,9 @@ export default function Profile() {
     { key: "requests", label: `Requests (${myRequests.length})` },
   ];
 
-  const wishlistCount = allItems.filter((i) =>
-    wishlistIds.includes(String(i._id))
-  ).length;
-
-  const displayName  = user?.username || user?.name || user?.email?.split("@")[0] || "User";
-  const avatarLetter = displayName[0]?.toUpperCase() || "U";
+  const wishlistCount = allItems.filter((i) => wishlistIds.includes(String(i._id))).length;
+  const displayName   = user?.username || user?.name || user?.email?.split("@")[0] || "User";
+  const avatarLetter  = displayName[0]?.toUpperCase() || "U";
 
   return (
     <View style={s.screen}>
@@ -724,17 +637,26 @@ export default function Profile() {
           />
         }
       >
-        {/* ── Header — CHANGE 1: logout button removed, only wishlist heart remains ── */}
+        {/* ── Header ── */}
         <View style={s.header}>
           <View style={s.coverStrip} />
           <View style={s.avatarRow}>
             <View style={s.avatar}>
               <Text style={s.avatarText}>{avatarLetter}</Text>
             </View>
-            {/* Only the wishlist heart icon here now */}
-            <TouchableOpacity onPress={() => setShowWishlist(true)} style={s.heartIconBtn}>
-              <Ionicons name="heart" size={22} color="#e11d48" />
-            </TouchableOpacity>
+
+            {/* ── TOP-RIGHT: heart + gear ── */}
+            <View style={s.headerIcons}>
+              <TouchableOpacity onPress={() => setShowWishlist(true)} style={s.heartIconBtn}>
+                <Ionicons name="heart" size={22} color="#e11d48" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/Settings")}
+                style={s.gearIconBtn}
+              >
+                <Ionicons name="settings-outline" size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={s.userName}>{displayName}</Text>
@@ -743,10 +665,10 @@ export default function Profile() {
 
           <View style={s.statsRow}>
             {[
-              { n: myItems.length,   l: "Listings"  },
-              { n: wishlistCount,    l: "Wishlist"  },
-              { n: myOrders.length,  l: "Orders"    },
-              { n: myRequests.length,l: "Requests"  },
+              { n: myItems.length,    l: "Listings"  },
+              { n: wishlistCount,     l: "Wishlist"  },
+              { n: myOrders.length,   l: "Orders"    },
+              { n: myRequests.length, l: "Requests"  },
             ].map((st, i, arr) => (
               <React.Fragment key={st.l}>
                 <View style={s.stat}>
@@ -759,7 +681,7 @@ export default function Profile() {
           </View>
         </View>
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.tabsWrap}>
           <View style={s.tabs}>
             {TABS.map(({ key, label }) => (
@@ -768,15 +690,13 @@ export default function Profile() {
                 style={[s.tab, tab === key && s.tabActive]}
                 onPress={() => setTab(key)}
               >
-                <Text style={[s.tabText, tab === key && s.tabTextActive]}>
-                  {label}
-                </Text>
+                <Text style={[s.tabText, tab === key && s.tabTextActive]}>{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </ScrollView>
 
-        {/* Tab content */}
+        {/* ── Tab content ── */}
         <View style={s.content}>
           {tab === "selling" && (
             <SellingTab
@@ -789,11 +709,7 @@ export default function Profile() {
             />
           )}
           {tab === "buying" && (
-            <BuyingTab
-              myOrders={myOrders}
-              onOrderAction={handleOrderAction}
-              router={router}
-            />
+            <BuyingTab myOrders={myOrders} onOrderAction={handleOrderAction} router={router} />
           )}
           {tab === "requests" && (
             <RequestsTab
@@ -804,12 +720,6 @@ export default function Profile() {
             />
           )}
         </View>
-
-        {/* ── CHANGE 2: Logout button at the bottom center ── */}
-        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={16} color="#ef4444" style={{ marginRight: 6 }} />
-          <Text style={s.logoutBtnText}>Log out</Text>
-        </TouchableOpacity>
 
         <View style={{ height: 48 }} />
       </ScrollView>
@@ -822,7 +732,6 @@ export default function Profile() {
         onToggle={handleWishlistToggle}
         router={router}
       />
-
       {editingItem && (
         <EditItemModal
           item={editingItem}
@@ -850,10 +759,7 @@ const s = StyleSheet.create({
 
   header:     { backgroundColor: "#1a1a1a", paddingBottom: 20 },
   coverStrip: { height: 52, backgroundColor: "#2a2a2a" },
-  avatarRow:  {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "flex-end", paddingHorizontal: 20,
-  },
+  avatarRow:  { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20 },
   avatar: {
     width: 68, height: 68, borderRadius: 34,
     backgroundColor: "#333", borderWidth: 3, borderColor: "#1a1a1a",
@@ -861,20 +767,20 @@ const s = StyleSheet.create({
   },
   avatarText: { fontSize: 26, color: "#fff", fontWeight: "700" },
 
-  // Only the heart icon remains in the header top-right
-  heartIconBtn: { padding: 8, paddingBottom: 6, justifyContent: "center", alignItems: "center" },
+  // ── The two top-right icon buttons ──
+  headerIcons:  { flexDirection: "row", alignItems: "center", gap: 6, paddingBottom: 6 },
+  heartIconBtn: { padding: 6, justifyContent: "center", alignItems: "center" },
+  gearIconBtn:  {
+    padding: 6, justifyContent: "center", alignItems: "center",
+    backgroundColor: "#2a2a2a", borderRadius: 18,
+    width: 34, height: 34,
+  },
 
   userName:  { fontSize: 20, fontWeight: "700", color: "#fff", paddingHorizontal: 20, marginTop: 10 },
-  userEmail: {
-    fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
-  userOrg: { fontSize: 11, color: "#666", paddingHorizontal: 20, marginTop: 2 },
+  userEmail: { fontSize: 12, color: "#9ca3af", paddingHorizontal: 20, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
+  userOrg:   { fontSize: 11, color: "#666", paddingHorizontal: 20, marginTop: 2 },
 
-  statsRow: {
-    flexDirection: "row", marginTop: 16,
-    borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14,
-  },
+  statsRow:  { flexDirection: "row", marginTop: 16, borderTopWidth: 0.5, borderTopColor: "#333", paddingTop: 14 },
   stat:      { flex: 1, alignItems: "center" },
   statNum:   { fontSize: 18, fontWeight: "700", color: "#fff" },
   statLabel: { fontSize: 9, color: "#666", marginTop: 2 },
@@ -888,16 +794,9 @@ const s = StyleSheet.create({
   tabTextActive: { color: "#1a1a1a" },
 
   content:  { padding: 16 },
-  secLabel: {
-    fontSize: 10, fontWeight: "700", color: "#9ca3af",
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
-  },
+  secLabel: { fontSize: 10, fontWeight: "700", color: "#9ca3af", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
 
-  card: {
-    flexDirection: "row", backgroundColor: "#fff", borderRadius: 14,
-    marginBottom: 10, overflow: "hidden",
-    borderWidth: 0.5, borderColor: "#ebebeb",
-  },
+  card:           { flexDirection: "row", backgroundColor: "#fff", borderRadius: 14, marginBottom: 10, overflow: "hidden", borderWidth: 0.5, borderColor: "#ebebeb" },
   cardImg:        { width: 84, height: 96, resizeMode: "cover" },
   imgPlaceholder: { backgroundColor: "#e9e9e7" },
   cardBody:       { flex: 1, padding: 10 },
@@ -926,22 +825,6 @@ const s = StyleSheet.create({
   reqWork:  { fontSize: 13, fontWeight: "600", color: "#1a1a1a", flex: 1, lineHeight: 18 },
   reqPrice: { fontSize: 14, fontWeight: "700", color: "#16a34a", flexShrink: 0 },
 
-  // Logout button — centered at the bottom of all content
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 40,
-    marginTop: 24,
-    marginBottom: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#fca5a5",
-    backgroundColor: "#fff",
-  },
-  logoutBtnText: { color: "#ef4444", fontWeight: "700", fontSize: 15 },
-
   empty:        { alignItems: "center", paddingVertical: 44, gap: 8 },
   emptyIcon:    { fontSize: 38 },
   emptyText:    { fontSize: 14, fontWeight: "600", color: "#6b7280" },
@@ -950,43 +833,22 @@ const s = StyleSheet.create({
 });
 
 const wl = StyleSheet.create({
-  backdrop: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.48)",
-  },
+  backdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.48)" },
   sheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: "#fff", borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    maxHeight: "88%",
-    paddingBottom: Platform.OS === "ios" ? 34 : 16,
+    maxHeight: "88%", paddingBottom: Platform.OS === "ios" ? 34 : 16,
   },
-  handle: {
-    width: 38, height: 4, borderRadius: 2, backgroundColor: "#e5e7eb",
-    alignSelf: "center", marginTop: 10, marginBottom: 4,
-  },
-  sheetHeader: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: 20, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: "#f3f4f6",
-  },
+  handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: "#e5e7eb", alignSelf: "center", marginTop: 10, marginBottom: 4 },
+  sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
   sheetTitleRow: { flexDirection: "row", alignItems: "center" },
   sheetTitle:    { fontSize: 18, fontWeight: "700", color: "#111" },
-  countBadge: {
-    marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10,
-    minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6,
-  },
+  countBadge: { marginLeft: 8, backgroundColor: "#fce7ea", borderRadius: 10, minWidth: 22, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
   countBadgeText: { fontSize: 12, fontWeight: "800", color: "#e11d48" },
-  closeBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center",
-  },
+  closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   listContent: { padding: 12 },
   row:         { justifyContent: "space-between", marginBottom: 12 },
-  card: {
-    width: CARD_W, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
-  },
+  card: { width: CARD_W, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3 },
   cardImg:       { width: "100%", height: CARD_W * 1.05 },
   noImg:         { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   cardBody:      { padding: 9 },
@@ -994,13 +856,7 @@ const wl = StyleSheet.create({
   price:         { fontSize: 14, fontWeight: "700", color: "#111", marginBottom: 2 },
   desc:          { fontSize: 11, color: "#6b7280", lineHeight: 15, marginBottom: 3 },
   meta:          { fontSize: 10, color: "#9ca3af" },
-  heartBtn: {
-    position: "absolute", top: 8, right: 8,
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: "#e11d48", alignItems: "center", justifyContent: "center",
-    shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.45, shadowRadius: 5, elevation: 5,
-  },
+  heartBtn: { position: "absolute", top: 8, right: 8, width: 30, height: 30, borderRadius: 15, backgroundColor: "#e11d48", alignItems: "center", justifyContent: "center", shadowColor: "#e11d48", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.45, shadowRadius: 5, elevation: 5 },
   typeBadge:     { position: "absolute", top: 8, left: 8, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
   badgeSell:     { backgroundColor: "#6366f1" },
   badgeRent:     { backgroundColor: "#f59e0b" },
@@ -1012,7 +868,7 @@ const wl = StyleSheet.create({
   browseBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 });
 
-const m = StyleSheet.create({
+const mo = StyleSheet.create({
   overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:     { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
   title:     { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 20 },
