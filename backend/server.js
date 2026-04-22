@@ -1,3 +1,4 @@
+require('dotenv').config();
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
@@ -12,7 +13,9 @@ const ratingRoutes = require("./routes/ratingRoutes");
 dotenv.config();
 
 const mongoDB = require("./config/db");
+const authController = require('./controllers/authController');
 const chatModel = require("./models/chatModel");
+
 
 const app    = express();
 const server = http.createServer(app);            // wrap express in http server
@@ -34,6 +37,9 @@ app.use("/api/orders",   require("./routes/orderRoutes"));
 app.use("/api/chat",     require("./routes/chatRoutes"));
 app.use("/api/user",     require("./routes/userRoutes")); 
 app.use("/api/ratings", require("./routes/ratingRoutes"));
+app.use("/api/admin-auth", require("./routes/adminAuthRoutes"));
+app.use("/api/super-admin", require("./routes/superAdminRoutes"));
+app.use("/api/admin", require("./routes/adminRoutes"));
 
 app.get("/", (req, res) => res.json({ message: "LenDen backend running" }));
 
@@ -102,10 +108,16 @@ io.on("connection", (socket) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 async function startServer() {
-  await mongoDB.connect();
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+    await mongoDB.connect();
+    
+    await authController.refreshAllowedDomains();
+    
+    const superAdminModel = require('./models/superAdminModel');
+    await superAdminModel.initializeSuperAdmins();
+    
+    server.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+    });
 }
 
 process.on("SIGINT",  async () => { await mongoDB.close(); process.exit(0); });

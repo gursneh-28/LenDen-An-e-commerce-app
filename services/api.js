@@ -182,3 +182,30 @@ export function requestRoomId(requestId, emailA, emailB) {
   const sorted = [emailA, emailB].sort();
   return `req_${requestId}_${sorted[0]}_${sorted[1]}`;
 }
+
+// Add to services/api.js
+
+export const adminAuthAPI = {
+    sendAdminOtp: (data) => apiRequest("/admin-auth/send-admin-otp", "POST", data),
+    registerOrganization: (data) => apiRequest("/admin-auth/register-organization", "POST", data),
+    adminLogin: (data) => apiRequest("/admin-auth/admin-login", "POST", data),
+};
+
+export const superAdminAPI = {
+    getPendingOrganizations: () => apiRequest("/super-admin/pending-organizations"),
+    getAllOrganizations: () => apiRequest("/super-admin/all-organizations"),
+    approveOrganization: (orgId) => apiRequest(`/super-admin/approve-organization/${orgId}`, "POST"),
+    rejectOrganization: (orgId, reason) => apiRequest(`/super-admin/reject-organization/${orgId}`, "POST", { reason }),
+    makeSuperAdmin: (email) => apiRequest("/super-admin/make-super-admin", "POST", { email }),
+    getOrganizationDetails: (orgId) => apiRequest(`/super-admin/organization/${orgId}`),
+};
+
+export const adminAPI = {
+    getUsers: () => apiRequest("/admin/users"),
+    getUserItems: (userId) => apiRequest(`/admin/users/${userId}/items`),
+    getUserRequests: (userId) => apiRequest(`/admin/users/${userId}/requests`),
+    blockUser: (userId, isBlocked) => apiRequest(`/admin/users/${userId}/block`, "PATCH", { isBlocked }),
+    deleteItem: (itemId) => apiRequest(`/admin/items/${itemId}`, "DELETE"),
+    deleteRequest: (requestId) => apiRequest(`/admin/requests/${requestId}`, "DELETE"),
+    getStats: () => apiRequest("/admin/stats"),
+};

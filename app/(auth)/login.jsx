@@ -1,3 +1,5 @@
+// app/(auth)/login.jsx - Updated navigation paths
+
 import React, { useState } from 'react';
 import {
     View,
@@ -13,7 +15,7 @@ import {
     StatusBar,
 } from 'react-native';
 import { router } from 'expo-router';
-import { authAPI, saveToken, saveUser } from '../../services/api';
+import { authAPI, adminAuthAPI, saveToken, saveUser } from '../../services/api';
 
 function showAlert(title, message) {
     if (Platform.OS === 'web') {
@@ -28,6 +30,7 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
+    const [loginType, setLoginType] = useState('user'); // 'user' or 'admin'
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -37,11 +40,28 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            const response = await authAPI.login({ email, password });
+            let response;
+            if (loginType === 'user') {
+                response = await authAPI.login({ email, password });
+            } else {
+                response = await adminAuthAPI.adminLogin({ email, password });
+            }
+            
             if (response.success) {
                 await saveToken(response.token);
                 await saveUser(response.user);
-                router.replace('/home');
+                
+                // Navigate based on role
+                if (response.user.role === 'super_admin') {
+                    // Navigate to super admin dashboard in (admin) folder
+                    router.replace('/(admin)/super-admin-dashboard');
+                } else if (response.user.role === 'admin') {
+                    // Navigate to admin dashboard in (admin) folder
+                    router.replace('/(admin)/admin-dashboard');
+                } else {
+                    // Navigate to user home in (tabs) folder
+                    router.replace('/(tabs)/home');
+                }
             }
         } catch (error) {
             showAlert('Login Failed', error.message);
@@ -70,18 +90,40 @@ export default function LoginScreen() {
                     <Text style={styles.brandTagline}>campus lending, simplified</Text>
                 </View>
 
+                {/* Login Type Selector */}
+                <View style={styles.loginTypeContainer}>
+                    <TouchableOpacity
+                        style={[styles.loginTypeBtn, loginType === 'user' && styles.loginTypeActive]}
+                        onPress={() => setLoginType('user')}
+                    >
+                        <Text style={[styles.loginTypeText, loginType === 'user' && styles.loginTypeTextActive]}>
+                            User Login
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.loginTypeBtn, loginType === 'admin' && styles.loginTypeActive]}
+                        onPress={() => setLoginType('admin')}
+                    >
+                        <Text style={[styles.loginTypeText, loginType === 'admin' && styles.loginTypeTextActive]}>
+                            Admin Login
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Form */}
                 <View style={styles.formCard}>
-                    <Text style={styles.formTitle}>Welcome back</Text>
+                    <Text style={styles.formTitle}>
+                        {loginType === 'user' ? 'Welcome back' : 'Admin Portal'}
+                    </Text>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>College Email</Text>
+                        <Text style={styles.label}>Email</Text>
                         <TextInput
                             style={[
                                 styles.input,
                                 focusedField === 'email' && styles.inputFocused,
                             ]}
-                            placeholder="you@college.edu.in"
+                            placeholder={loginType === 'user' ? "you@college.edu.in" : "admin@organization.com"}
                             placeholderTextColor="#B8B8AE"
                             value={email}
                             onChangeText={setEmail}
@@ -128,15 +170,27 @@ export default function LoginScreen() {
 
                 {/* Footer */}
                 <View style={styles.footer}>
-                    <Text style={styles.footerText}>New to lenden? </Text>
-                    <TouchableOpacity onPress={() => router.push('/signup')} activeOpacity={0.7}>
-                        <Text style={styles.footerLink}>Create account</Text>
+                    <Text style={styles.footerText}>
+                        {loginType === 'user' ? 'New to lenden? ' : 'Want to register your organization? '}
+                    </Text>
+                    <TouchableOpacity 
+                        onPress={() => loginType === 'user' 
+                            ? router.push('/(auth)/signup') 
+                            : router.push('/(auth)/register-organization')
+                        } 
+                        activeOpacity={0.7}
+                    >
+                        <Text style={styles.footerLink}>
+                            {loginType === 'user' ? 'Create account' : 'Register here'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.disclaimer}>
-                    Only verified college email addresses are accepted
-                </Text>
+                {loginType === 'user' && (
+                    <Text style={styles.disclaimer}>
+                        Only verified college email addresses are accepted
+                    </Text>
+                )}
             </ScrollView>
         </KeyboardAvoidingView>
     );
@@ -186,13 +240,44 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
     },
 
+    // Login Type Selector
+    loginTypeContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#F0F0EB',
+        borderRadius: 12,
+        padding: 4,
+        marginBottom: 24,
+    },
+    loginTypeBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    loginTypeActive: {
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#1A1A1A',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    loginTypeText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#888880',
+    },
+    loginTypeTextActive: {
+        color: '#1A1A1A',
+    },
+
     // Form card
     formCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 20,
         padding: 28,
         borderWidth: 1,
-        borderColor: '#EBEBЕ6',
+        borderColor: '#EBEBE6',
         shadowColor: '#1A1A1A',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.06,
@@ -271,7 +356,7 @@ const styles = StyleSheet.create({
     },
     disclaimer: {
         textAlign: 'center',
-        color: '#AAAAА5',
+        color: '#AAAAA5',
         fontSize: 12,
         marginTop: 20,
         letterSpacing: 0.2,

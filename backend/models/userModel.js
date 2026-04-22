@@ -74,11 +74,65 @@ async function toggleWishlist(userId, itemId) {
     }
 }
 
+
+async function getUsersByOrg(orgDomain) {
+    const collection = await getCollection();
+    return await collection.find({ org: orgDomain }).toArray();
+}
+
+async function updateUserBlockStatus(userId, isBlocked) {
+    const collection = await getCollection();
+    const result = await collection.updateOne(
+        { _id: typeof userId === 'string' ? new ObjectId(userId) : userId },
+        { $set: { isBlocked, updatedAt: new Date() } }
+    );
+    return result.modifiedCount > 0;
+}
+
+async function getAllUsers() {
+    const collection = await getCollection();
+    return await collection.find({}).toArray();
+}
+
+async function getUserCountByOrg(orgDomain) {
+    const collection = await getCollection();
+    return await collection.countDocuments({ org: orgDomain });
+}
+
+async function getUsersByOrg(orgDomain) {
+    const collection = await getCollection();
+    return await collection.find({ org: orgDomain }).toArray();
+}
+
+// backend/models/userModel.js - Add these functions
+
+async function getUserCountByOrg(orgDomain) {
+    const collection = await getCollection();
+    return await collection.countDocuments({ org: orgDomain });
+}
+
+async function getUsersByOrg(orgDomain) {
+    const collection = await getCollection();
+    return await collection.find({ org: orgDomain }).toArray();
+}
+
+async function updateUserBlockStatus(userId, isBlocked) {
+    const collection = await getCollection();
+    const result = await collection.updateOne(
+        { _id: typeof userId === 'string' ? new ObjectId(userId) : userId },
+        { $set: { isBlocked, updatedAt: new Date() } }
+    );
+    return result.modifiedCount > 0;
+}
+
 module.exports = {
     createUser,
     findByEmail,
     findByUsername,
     findById,
     getWishlist,
-    toggleWishlist
+    toggleWishlist,
+    getUserCountByOrg,      
+    getUsersByOrg,          
+    updateUserBlockStatus   
 };
