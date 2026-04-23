@@ -183,7 +183,6 @@ export function requestRoomId(requestId, emailA, emailB) {
   return `req_${requestId}_${sorted[0]}_${sorted[1]}`;
 }
 
-// Add to services/api.js
 
 export const adminAuthAPI = {
     sendAdminOtp: (data) => apiRequest("/admin-auth/send-admin-otp", "POST", data),

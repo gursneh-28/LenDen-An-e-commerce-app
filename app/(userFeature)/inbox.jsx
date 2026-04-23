@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Platform,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
-import { chatAPI, getUser } from "../services/api";
+import { chatAPI, getUser } from "../../services/api";
 
 function timeAgo(iso) {
   if (!iso) return "";

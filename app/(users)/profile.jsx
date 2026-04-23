@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { itemAPI, requestAPI, orderAPI, userAPI, getUser, clearSession } from "../../services/api";
-import RatingModal from "../components/RatingModal";
+import RatingModal from "../(userFeature)/RatingModal";
 import { ratingAPI } from "../../services/api";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -412,7 +412,7 @@ function SellingTab({ myItems, incomingOrders, onEditItem, onDeleteItem, onOrder
 // ─── Tab: Buying ───────────────────────────────────────────────────────────────
 function BuyingTab({ myOrders, onOrderAction, router, ratedOrderIds, setRatingTarget }) {
   if (myOrders.length === 0) {
-    return <EmptyState icon="🛍️" text="No purchases yet" btnText="Browse listings" onPress={() => router.push("/(tabs)/home")} />;
+    return <EmptyState icon="🛍️" text="No purchases yet" btnText="Browse listings" onPress={() => router.push("/(users)/home")} />;
   }
 
   const active = myOrders.filter((o) => !["completed", "cancelled"].includes(o.status));

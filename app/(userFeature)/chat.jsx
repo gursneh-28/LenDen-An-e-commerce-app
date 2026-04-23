@@ -7,7 +7,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { io }        from "socket.io-client";
 import AsyncStorage  from "@react-native-async-storage/async-storage";
-import { chatAPI, SOCKET_URL } from "../services/api";
+import { chatAPI, SOCKET_URL } from "../../services/api";
 
 function timeStr(iso) {
   if (!iso) return "";
@@ -36,7 +36,6 @@ export default function Chat() {
   const otherEmail = conv?.participants?.find((p) => p !== myEmail) || "";
   const otherName  = otherEmail.split("@")[0];
 
-  // ── Load history + connect socket ──────────────────────────────────────────
   useEffect(() => {
     if (!roomId) return;
 
@@ -54,20 +53,18 @@ export default function Chat() {
 
       socket.on("new_message", (msg) => {
         setMessages((prev) => {
-          // ✅ FIX: drop the message if we already have it by _id OR by optimistic temp id
-          // This prevents the server echo from doubling the optimistic bubble
           const alreadyExists = prev.some(
             (m) =>
-              // exact _id match (server → server duplicate)
+             
               (m._id && msg._id && m._id.toString() === msg._id.toString()) ||
-              // optimistic bubble for OUR OWN message — replace it instead of appending
+              
               (m._id?.startsWith?.("opt_") && m.senderEmail === msg.senderEmail && m.text === msg.text)
           );
           if (alreadyExists) {
-            // Replace optimistic bubble with real server message
+           
             return prev.map((m) =>
               m._id?.startsWith?.("opt_") && m.senderEmail === msg.senderEmail && m.text === msg.text
-                ? msg   // swap temp bubble → real message (gets real _id + timestamp)
+                ? msg  
                 : m
             );
           }
@@ -88,19 +85,17 @@ export default function Chat() {
     };
   }, [roomId]);
 
-  // ── Send message ────────────────────────────────────────────────────────────
   const sendMessage = useCallback(() => {
     const trimmed = text.trim();
 
-    // ✅ FIX: Guard 1 — empty text or no socket
+   
     if (!trimmed || !socketRef.current) return;
 
-    // ✅ FIX: Guard 2 — ref-based lock so double-tap / onSubmitEditing + onPress
-    // can never both fire. This is the main fix for the 2-message bug.
+
     if (isSendingRef.current) return;
     isSendingRef.current = true;
 
-    // Clear input immediately so user can't tap again
+   
     setText("");
 
     const payload = {
@@ -116,7 +111,7 @@ export default function Chat() {
       org:            conv.org,
     };
 
-    // Optimistic bubble — shown instantly before server confirms
+    
     const optimistic = {
       _id:         `opt_${Date.now()}`,
       roomId,
@@ -127,11 +122,10 @@ export default function Chat() {
     setMessages((prev) => [...prev, optimistic]);
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
 
-    // Emit to socket
+ 
     socketRef.current.emit("send_message", payload);
 
-    // ✅ FIX: Release lock after short delay — prevents rapid double-tap
-    // but allows the next message to be sent normally
+
     setTimeout(() => { isSendingRef.current = false; }, 300);
   }, [text, roomId, otherEmail, otherName, conv, myEmail]);
 
@@ -173,7 +167,7 @@ export default function Chat() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={0}
     >
-      {/* Header */}
+
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
           <Text style={s.backText}>←</Text>
@@ -189,7 +183,6 @@ export default function Chat() {
         </View>
       </View>
 
-      {/* Context banner */}
       <View style={[s.contextBanner, { backgroundColor: contextBg, borderBottomColor: contextBorder }]}>
         {conv.contextImage ? (
           <Image source={{ uri: conv.contextImage }} style={s.contextImg} />
@@ -208,7 +201,6 @@ export default function Chat() {
         </View>
       </View>
 
-      {/* Messages */}
       {loading ? (
         <View style={s.centered}>
           <ActivityIndicator color="#111" />
@@ -230,7 +222,7 @@ export default function Chat() {
         />
       )}
 
-      {/* Input bar */}
+
       <View style={s.inputBar}>
         <TextInput
           style={s.input}
@@ -240,9 +232,6 @@ export default function Chat() {
           placeholderTextColor="#9ca3af"
           multiline
           maxLength={1000}
-          // ✅ FIX: REMOVED onSubmitEditing={sendMessage} — this was firing
-          // at the same time as onPress, causing every message to send twice.
-          // The send button onPress is the only trigger now.
           returnKeyType="default"
           blurOnSubmit={false}
         />

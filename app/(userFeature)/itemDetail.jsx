@@ -4,9 +4,9 @@ import {
   StyleSheet, Platform, Dimensions, Alert, ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { getUser, itemRoomId, userAPI, ratingAPI } from "../services/api";
+import { getUser, itemRoomId, userAPI, ratingAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
-import { RatingBadge } from "./components/StarRating";  // named export — must match StarRating.jsx
+import { RatingBadge } from "./StarRating";  
 
 const { width: W } = Dimensions.get("window");
 
@@ -25,7 +25,6 @@ export default function ItemDetail() {
   const [loading,         setLoading]         = useState(true);
   const [sellerRating,    setSellerRating]    = useState({ average: 0, count: 0 });
 
-  // Parse item — memoized so it's stable across renders
   const item = useMemo(() => {
     try {
       return params.item ? JSON.parse(params.item) : null;
@@ -35,23 +34,22 @@ export default function ItemDetail() {
     }
   }, [params.item]);
 
-  // Fetch seller rating once item is available
   useEffect(() => {
     if (!item?.uploadedBy) return;
     ratingAPI
       .getUserSummary(item.uploadedBy)
       .then((res) => { if (res?.success && res.data) setSellerRating(res.data); })
-      .catch(() => {}); // silently ignore — UI handles zero-rating state
+      .catch(() => {}); 
   }, [item?.uploadedBy]);
 
-  // Check wishlist status once item._id is known
+
   useEffect(() => {
     if (item?._id) {
       checkWishlistStatus();
     } else {
-      setLoading(false); // no item — stop spinner
+      setLoading(false); 
     }
-  }, [item?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [item?._id]); 
 
   const checkWishlistStatus = async () => {
     try {
@@ -72,7 +70,7 @@ export default function ItemDetail() {
 
     const wasWishlisted = isWishlisted;
     setWishlistLoading(true);
-    setIsWishlisted(!wasWishlisted); // optimistic update
+    setIsWishlisted(!wasWishlisted); 
 
     try {
       const res = await userAPI.toggleWishlist(item._id);
@@ -81,18 +79,18 @@ export default function ItemDetail() {
           setIsWishlisted(res.wishlist.map((id) => String(id)).includes(String(item._id)));
         }
       } else {
-        setIsWishlisted(wasWishlisted); // rollback
+        setIsWishlisted(wasWishlisted); 
       }
     } catch (e) {
       console.warn("toggleWishlist error:", e);
-      setIsWishlisted(wasWishlisted); // rollback
+      setIsWishlisted(wasWishlisted); 
       Alert.alert("Error", e?.message || "Failed to update wishlist");
     } finally {
       setWishlistLoading(false);
     }
   };
 
-  // ── Guard: no item ────────────────────────────────────────────────────────
+ 
   if (!item) {
     return (
       <View style={s.centered}>
@@ -106,7 +104,6 @@ export default function ItemDetail() {
     );
   }
 
-  // ── Guard: loading wishlist status ────────────────────────────────────────
   if (loading) {
     return (
       <View style={s.centered}>
@@ -115,7 +112,6 @@ export default function ItemDetail() {
     );
   }
 
-  // ── Derived values ────────────────────────────────────────────────────────
   const images = item.images?.length
     ? item.images
     : item.image
@@ -127,7 +123,6 @@ export default function ItemDetail() {
   const sellerInitial =
     (item.uploaderName || item.uploadedBy || "?")[0]?.toUpperCase() || "?";
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleChat = async () => {
     try {
       const user = await getUser();
@@ -161,15 +156,14 @@ export default function ItemDetail() {
     });
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={s.screen}>
-      {/* Back button */}
+
       <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
         <Text style={s.backBtnText}>←</Text>
       </TouchableOpacity>
 
-      {/* Wishlist heart button */}
+
       <TouchableOpacity
         style={s.wishlistBtn}
         onPress={toggleWishlist}
@@ -187,7 +181,7 @@ export default function ItemDetail() {
       </TouchableOpacity>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Image carousel */}
+
         <ScrollView
           horizontal
           pagingEnabled
@@ -207,7 +201,7 @@ export default function ItemDetail() {
           )}
         </ScrollView>
 
-        {/* Dot indicators */}
+
         {images.length > 1 && (
           <View style={s.dots}>
             {images.map((_, i) => (
@@ -219,7 +213,6 @@ export default function ItemDetail() {
         <View style={s.body}>
           {!!item.name && <Text style={s.name}>{item.name}</Text>}
 
-          {/* Price + type pill */}
           <View style={s.priceRow}>
             <Text style={s.price}>₹{item.price?.toLocaleString()}</Text>
             <View style={[s.pill, isRent ? s.pillRent : s.pillSell]}>
@@ -233,7 +226,6 @@ export default function ItemDetail() {
             <Text style={s.desc}>{item.description}</Text>
           )}
 
-          {/* Availability (rent only) */}
           {isRent && item.availability?.length > 0 && (
             <View style={s.section}>
               <Text style={s.sectionTitle}>Availability</Text>
@@ -245,14 +237,12 @@ export default function ItemDetail() {
             </View>
           )}
 
-          {/* Seller card */}
           <View style={s.sellerCard}>
             <View style={s.sellerAvatar}>
               <Text style={s.sellerAvatarText}>{sellerInitial}</Text>
             </View>
             <View style={s.sellerInfo}>
               <Text style={s.sellerName}>{item.uploaderName || "Seller"}</Text>
-              {/* RatingBadge handles zero-count gracefully */}
               <RatingBadge
                 rating={sellerRating.average}
                 count={sellerRating.count}
@@ -265,7 +255,6 @@ export default function ItemDetail() {
             </View>
           </View>
 
-          {/* Action buttons */}
           <TouchableOpacity style={s.chatBtn} onPress={handleChat}>
             <Text style={s.chatBtnText}>💬  Chat with seller</Text>
           </TouchableOpacity>
@@ -281,7 +270,6 @@ export default function ItemDetail() {
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen:   { flex: 1, backgroundColor: "#fff" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },

@@ -60,7 +60,7 @@ export default function LoginScreen() {
                     router.replace('/(admin)/admin-dashboard');
                 } else {
                     // Navigate to user home in (tabs) folder
-                    router.replace('/(tabs)/home');
+                    router.replace('/(users)/home');
                 }
             }
         } catch (error) {

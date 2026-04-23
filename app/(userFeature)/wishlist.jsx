@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
-import { itemAPI, userAPI } from "../services/api";
+import { itemAPI, userAPI } from "../../services/api";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });

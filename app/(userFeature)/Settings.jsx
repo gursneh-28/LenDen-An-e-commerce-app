@@ -5,8 +5,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getUser, clearSession } from "../services/api";
-import MyRatings from "./components/MyRatings";   // ← correct relative path from app/
+import { getUser, clearSession } from "../../services/api";
+import MyRatings from "./MyRatings";  
 
 // ── Edit Profile Modal ─────────────────────────────────────────────────────────
 function EditProfileModal({ visible, user, onClose, onSave }) {

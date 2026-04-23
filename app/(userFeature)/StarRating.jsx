@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
-// ── Display only — shows filled/empty stars + optional numeric label ──────────
 export function StarDisplay({ rating = 0, count, size = 13, showNumber = true }) {
-  const rounded = Math.round(rating * 2) / 2; // round to nearest 0.5
+  const rounded = Math.round(rating * 2) / 2; 
   return (
     <View style={d.row}>
       {[1, 2, 3, 4, 5].map((i) => (
@@ -24,7 +23,6 @@ export function StarDisplay({ rating = 0, count, size = 13, showNumber = true })
   );
 }
 
-// ── Interactive picker — lets user tap to select 1–5 stars ───────────────────
 export function StarPicker({ value = 0, onChange, size = 32 }) {
   return (
     <View style={d.row}>
@@ -42,7 +40,6 @@ export function StarPicker({ value = 0, onChange, size = 32 }) {
   );
 }
 
-// ── Compact badge — e.g. "★ 4.6" shown on seller card ───────────────────────
 export function RatingBadge({ rating, count, style }) {
   if (!rating || rating === 0) return null;
   return (
