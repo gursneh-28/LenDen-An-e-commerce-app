@@ -151,7 +151,7 @@ export default function ItemDetail() {
 
   const handleBuy = () => {
     router.push({
-      pathname: "/checkout",
+      pathname: "/(userFeature)/checkout",
       params: { item: JSON.stringify(item), orderType: isRent ? "rent" : "buy" },
     });
   };

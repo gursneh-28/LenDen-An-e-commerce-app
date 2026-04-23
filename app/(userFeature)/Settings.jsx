@@ -234,7 +234,7 @@ export default function Settings() {
           } catch (_) {
             // ignore — clear locally regardless
           }
-          router.replace("/login");
+          router.replace("/(auth)/login");
         },
       },
     ]);
@@ -271,7 +271,7 @@ export default function Settings() {
     <View style={s.screen}>
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+        <TouchableOpacity onPress={() => router.replace("/(users)/profile")} style={s.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#1a1a1a" />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Settings</Text>
