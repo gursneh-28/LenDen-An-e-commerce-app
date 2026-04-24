@@ -56,4 +56,5 @@ async function deleteMessage(messageId) {
   return await c.deleteOne({ _id: new ObjectId(messageId) });
 }
 
-module.exports = { upsertConversation, saveMessage, getMessages, getConversations, markRead, countUnread };
+module.exports = { upsertConversation, saveMessage, getMessages, getConversations, markRead, countUnread, 
+  editMessage, deleteMessage, };

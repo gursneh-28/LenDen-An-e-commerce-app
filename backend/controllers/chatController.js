@@ -55,4 +55,4 @@ async function deleteMessage(req, res) {
   }
 }
 
-module.exports = { getConversations, getMessages, getUnread };
+module.exports = { getConversations, getMessages, getUnread, editMessage, deleteMessage,};
