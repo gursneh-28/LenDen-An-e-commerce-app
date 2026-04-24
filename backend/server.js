@@ -37,6 +37,7 @@ app.use("/api/orders",   require("./routes/orderRoutes"));
 app.use("/api/chat",     require("./routes/chatRoutes"));
 app.use("/api/user",     require("./routes/userRoutes")); 
 app.use("/api/ratings", require("./routes/ratingRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/admin-auth", require("./routes/adminAuthRoutes"));
 app.use("/api/super-admin", require("./routes/superAdminRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
