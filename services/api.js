@@ -208,3 +208,11 @@ export const adminAPI = {
     deleteRequest: (requestId) => apiRequest(`/admin/requests/${requestId}`, "DELETE"),
     getStats: () => apiRequest("/admin/stats"),
 };
+
+export const notificationAPI = {
+  getAll:        ()   => apiRequest("/notifications"),
+  getUnreadCount:()   => apiRequest("/notifications/unread-count"),
+  markRead:      (id) => apiRequest(`/notifications/${id}/read`, "PATCH"),
+  markAllRead:   ()   => apiRequest("/notifications/mark-all-read", "PATCH"),
+  delete:        (id) => apiRequest(`/notifications/${id}`, "DELETE"),
+};

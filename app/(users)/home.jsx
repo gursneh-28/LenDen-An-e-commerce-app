@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { itemAPI, userAPI } from "../../services/api";
+import { itemAPI, userAPI, notificationAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -41,9 +41,7 @@ function applyFilters(list, q, cat) {
     if (cat === "sell" || cat === "rent") {
       out = out.filter((i) => i.type === cat);
     } else {
-      out = out.filter(
-        (i) => i.category?.toLowerCase() === cat.toLowerCase()
-      );
+      out = out.filter((i) => i.category?.toLowerCase() === cat.toLowerCase());
     }
   }
   if (q.trim()) {
@@ -69,7 +67,8 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [wishlist,       setWishlist]       = useState([]);
   const [userName,       setUserName]       = useState("");
-  const [unreadCount,    setUnreadCount]    = useState(0); // messages badge
+  const [unreadCount,    setUnreadCount]    = useState(0); // chat badge
+  const [notifCount,     setNotifCount]     = useState(0); // notification badge
 
   const searchRef   = useRef("");
   const categoryRef = useRef("all");
@@ -91,6 +90,7 @@ export default function Home() {
       fetchItems();
       fetchWishlist();
       fetchUnread();
+      fetchNotifCount();
     }, [])
   );
 
@@ -102,12 +102,18 @@ export default function Home() {
     } catch {}
   };
 
+  // ── NEW: fetch notification unread count ────────────────────────────────────
+  const fetchNotifCount = async () => {
+    try {
+      const res = await notificationAPI.getUnreadCount();
+      if (res?.success) setNotifCount(res.count || 0);
+    } catch {}
+  };
+
   const fetchWishlist = async () => {
     try {
       const res = await userAPI.getWishlist();
-      if (res.success) {
-        setWishlist((res.data || []).map((id) => String(id)));
-      }
+      if (res.success) setWishlist((res.data || []).map((id) => String(id)));
     } catch (e) {
       console.log("wishlist fetch error", e);
     }
@@ -147,11 +153,8 @@ export default function Home() {
     );
     try {
       const res = await userAPI.toggleWishlist(strId);
-      if (res.success && res.wishlist) {
-        setWishlist(res.wishlist.map((x) => String(x)));
-      }
+      if (res.success && res.wishlist) setWishlist(res.wishlist.map((x) => String(x)));
     } catch (e) {
-      console.log("wishlist toggle error", e);
       setWishlist((prev) =>
         isWishlisted ? [...prev, strId] : prev.filter((x) => x !== strId)
       );
@@ -160,10 +163,7 @@ export default function Home() {
 
   const openItem = (item) => {
     try {
-      router.push({
-        pathname: "/itemDetail",
-        params: { item: JSON.stringify(item) },
-      });
+      router.push({ pathname: "/itemDetail", params: { item: JSON.stringify(item) } });
     } catch (e) {
       console.log("navigation error", e);
     }
@@ -172,11 +172,7 @@ export default function Home() {
   const renderCard = ({ item }) => {
     const wishlisted = wishlist.includes(String(item._id));
     return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.88}
-        onPress={() => openItem(item)}
-      >
+      <TouchableOpacity style={styles.card} activeOpacity={0.88} onPress={() => openItem(item)}>
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.cardImage} />
         ) : (
@@ -190,23 +186,15 @@ export default function Home() {
           onPress={() => toggleWishlist(item._id)}
           hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
         >
-          <Ionicons
-            name={wishlisted ? "heart" : "heart-outline"}
-            size={16}
-            color="#fff"
-          />
+          <Ionicons name={wishlisted ? "heart" : "heart-outline"} size={16} color="#fff" />
         </TouchableOpacity>
 
         <View style={[styles.badge, item.type === "rent" ? styles.badgeRent : styles.badgeSell]}>
-          <Text style={styles.badgeText}>
-            {item.type === "rent" ? "Rent" : "Sale"}
-          </Text>
+          <Text style={styles.badgeText}>{item.type === "rent" ? "Rent" : "Sale"}</Text>
         </View>
 
         <View style={styles.cardBody}>
-          {!!item.name && (
-            <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-          )}
+          {!!item.name && <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>}
           <Text style={styles.cardPrice}>₹{item.price}</Text>
           <Text style={styles.cardMeta} numberOfLines={1}>
             {item.uploaderName} · {timeAgo(item.createdAt)}
@@ -229,28 +217,47 @@ export default function Home() {
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       <View style={styles.headerContainer}>
-        {/* Greeting row — messages icon replaces wishlist pill */}
+        {/* Greeting row */}
         <View style={styles.greetRow}>
           <View>
             <Text style={styles.greeting}>Hey {userName || "there"} 👋</Text>
             <Text style={styles.subGreeting}>Find something in your org</Text>
           </View>
 
-          {/* Messages icon button */}
-        <TouchableOpacity
-        style={styles.msgBtn}
-        onPress={() => router.push("/inbox")}
-        activeOpacity={0.82}>
-        <Ionicons name="chatbubble-ellipses-outline" size={22} color="#111" />
+          {/* Right icons: Bell + Chat */}
+          <View style={styles.iconRow}>
+            {/* 🔔 Notification bell */}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => router.push("/(userFeature)/notifications")}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="notifications-outline" size={22} color="#111" />
+              {notifCount > 0 && (
+                <View style={styles.badge2}>
+                  <Text style={styles.badge2Text}>
+                    {notifCount > 9 ? "9+" : notifCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
-  {unreadCount > 0 && (
-    <View style={styles.unreadBadge}>
-      <Text style={styles.unreadBadgeText}>
-        {unreadCount > 9 ? "9+" : unreadCount}
-      </Text>
-    </View>
-  )}
-</TouchableOpacity>
+            {/* 💬 Chat */}
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => router.push("/inbox")}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color="#111" />
+              {unreadCount > 0 && (
+                <View style={styles.badge2}>
+                  <Text style={styles.badge2Text}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search bar */}
@@ -288,9 +295,7 @@ export default function Home() {
                 onPress={() => handleCategory(cat.key)}
               >
                 <Text style={styles.catIcon}>{cat.icon}</Text>
-                <Text style={[styles.catLabel, active && styles.catLabelActive]}>
-                  {cat.label}
-                </Text>
+                <Text style={[styles.catLabel, active && styles.catLabelActive]}>{cat.label}</Text>
                 {active && <View style={styles.catUnderline} />}
               </TouchableOpacity>
             );
@@ -310,7 +315,7 @@ export default function Home() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchItems(); }}
+            onRefresh={() => { setRefreshing(true); fetchItems(); fetchNotifCount(); }}
             colors={["#e11d48"]}
           />
         }
@@ -341,21 +346,22 @@ const styles = StyleSheet.create({
   greeting:    { fontSize: 20, fontWeight: "700", color: "#111" },
   subGreeting: { fontSize: 13, color: "#9ca3af", marginTop: 2 },
 
-  // Messages icon button (replaces wishlist pill)
-  msgBtn: {
+  // ── Icon row (bell + chat) ──────────────────────────────────────────────────
+  iconRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  iconBtn: {
     position: "relative",
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: "#f3f4f6",
     alignItems: "center", justifyContent: "center",
   },
-  unreadBadge: {
+  badge2: {
     position: "absolute", top: 2, right: 2,
     backgroundColor: "#e11d48", borderRadius: 8,
     minWidth: 16, height: 16,
     alignItems: "center", justifyContent: "center",
     paddingHorizontal: 3,
   },
-  unreadBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  badge2Text: { color: "#fff", fontSize: 9, fontWeight: "800" },
 
   searchRow: {
     flexDirection: "row", alignItems: "center",
@@ -369,24 +375,19 @@ const styles = StyleSheet.create({
   catIcon:        { fontSize: 18, marginBottom: 2 },
   catLabel:       { fontSize: 13, color: "#6b7280", fontWeight: "500" },
   catLabelActive: { color: "#111", fontWeight: "700" },
-  catUnderline: {
-    position: "absolute", bottom: 0, left: 10, right: 10,
-    height: 2.5, backgroundColor: "#f59e0b", borderRadius: 2,
-  },
+  catUnderline:   { position: "absolute", bottom: 0, left: 10, right: 10, height: 2.5, backgroundColor: "#f59e0b", borderRadius: 2 },
 
   listContent: { padding: 12, paddingTop: 8 },
   row:         { justifyContent: "space-between", marginBottom: 12 },
 
   card: {
-    width: CARD_WIDTH, backgroundColor: "#fff", borderRadius: 16,
-    overflow: "hidden",
+    width: CARD_WIDTH, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden",
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
   },
   cardImage: { width: "100%", height: CARD_WIDTH * 1.1 },
   noImage:   { backgroundColor: "#f3f4f6", alignItems: "center", justifyContent: "center" },
   cardBody:  { padding: 10 },
-
   cardName:  { fontSize: 13, fontWeight: "700", color: "#111", marginBottom: 2 },
   cardPrice: { fontSize: 14, fontWeight: "700", color: "#e11d48", marginBottom: 2 },
   cardMeta:  { fontSize: 10, color: "#9ca3af" },

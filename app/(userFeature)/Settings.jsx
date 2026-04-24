@@ -2,11 +2,21 @@ import React, { useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Alert, Linking, Platform, Modal, TextInput, ActivityIndicator,
+  Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getUser, clearSession } from "../../services/api";
-import MyRatings from "./MyRatings";  
+import MyRatings from "./MyRatings";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const NOTIF_KEY = "notif_prefs";
+const DEFAULT_PREFS = {
+  orders:  true,
+  chat:    true,
+  ratings: true,
+  help:    true,
+};
 
 // ── Edit Profile Modal ─────────────────────────────────────────────────────────
 function EditProfileModal({ visible, user, onClose, onSave }) {
@@ -14,7 +24,6 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
   const [phone,    setPhone]    = useState(user?.phoneNumber || "");
   const [saving,   setSaving]   = useState(false);
 
-  // Sync state if the user prop changes (e.g. after first load)
   React.useEffect(() => {
     if (user) {
       setUsername(user.username || user.name || "");
@@ -26,8 +35,6 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
     if (!username.trim()) return Alert.alert("Required", "Name cannot be empty.");
     try {
       setSaving(true);
-      // Uncomment when API is ready:
-      // await userAPI.updateProfile({ username: username.trim(), phoneNumber: phone.trim() });
       Alert.alert("Saved", "Profile updated successfully.");
       onSave?.({ username: username.trim(), phoneNumber: phone.trim() });
       onClose();
@@ -97,7 +104,6 @@ function ChangePasswordModal({ visible, onClose }) {
       return Alert.alert("Mismatch", "New passwords don't match.");
     try {
       setSaving(true);
-      // await userAPI.changePassword({ currentPassword: current, newPassword: next });
       Alert.alert("Done", "Password changed successfully.");
       setCurrent(""); setNext(""); setConfirm("");
       onClose();
@@ -109,8 +115,8 @@ function ChangePasswordModal({ visible, onClose }) {
   };
 
   const fields = [
-    { label: "Current password",    val: current, set: setCurrent },
-    { label: "New password",        val: next,    set: setNext    },
+    { label: "Current password",     val: current, set: setCurrent },
+    { label: "New password",         val: next,    set: setNext    },
     { label: "Confirm new password", val: confirm, set: setConfirm },
   ];
 
@@ -142,6 +148,106 @@ function ChangePasswordModal({ visible, onClose }) {
                 : <Text style={m.saveText}>Update</Text>}
             </TouchableOpacity>
           </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Notification Settings Modal ────────────────────────────────────────────────
+function NotifSettingsModal({ visible, onClose }) {
+  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
+
+  // Load saved prefs when modal opens
+  React.useEffect(() => {
+    if (!visible) return;
+    AsyncStorage.getItem(NOTIF_KEY)
+      .then((raw) => { if (raw) setPrefs(JSON.parse(raw)); })
+      .catch(() => {});
+  }, [visible]);
+
+  const toggle = async (key) => {
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+    await AsyncStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
+  };
+
+  const ITEMS = [
+    {
+      key: "orders",
+      icon: "bag-check-outline",
+      iconBg: "#eef2ff",
+      color: "#6366f1",
+      label: "Order updates",
+      sub: "New orders and status changes",
+    },
+    {
+      key: "chat",
+      icon: "chatbubble-outline",
+      iconBg: "#e0f2fe",
+      color: "#0ea5e9",
+      label: "Messages",
+      sub: "New chat messages",
+    },
+    {
+      key: "ratings",
+      icon: "star-outline",
+      iconBg: "#fef9ee",
+      color: "#f59e0b",
+      label: "Ratings received",
+      sub: "When someone rates you",
+    },
+    {
+      key: "help",
+      icon: "hand-left-outline",
+      iconBg: "#ecfdf5",
+      color: "#10b981",
+      label: "Help requests",
+      sub: "Resolved & new responses",
+    },
+  ];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={m.overlay}>
+        <View style={m.sheet}>
+          {/* Header */}
+          <View style={nf.modalHeader}>
+            <View style={nf.modalIconBox}>
+              <Ionicons name="notifications-outline" size={22} color="#1a1a1a" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={m.title}>Notifications</Text>
+              <Text style={nf.modalSub}>Choose what you want to hear about</Text>
+            </View>
+          </View>
+
+          {/* Toggle rows */}
+          {ITEMS.map(({ key, icon, iconBg, color, label, sub }, idx) => (
+            <View
+              key={key}
+              style={[nf.row, idx < ITEMS.length - 1 && nf.rowBorder]}
+            >
+              <View style={[nf.iconBox, { backgroundColor: iconBg }]}>
+                <Ionicons name={icon} size={18} color={color} />
+              </View>
+              <View style={nf.info}>
+                <Text style={nf.label}>{label}</Text>
+                <Text style={nf.sub}>{sub}</Text>
+              </View>
+              <Switch
+                value={prefs[key]}
+                onValueChange={() => toggle(key)}
+                trackColor={{ false: "#e5e7eb", true: "#1a1a1a" }}
+                thumbColor="#fff"
+                ios_backgroundColor="#e5e7eb"
+              />
+            </View>
+          ))}
+
+          <TouchableOpacity style={[m.saveBtn, { marginTop: 24 }]} onPress={onClose}>
+            <Text style={m.saveText}>Done</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -214,9 +320,9 @@ export default function Settings() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePwd,   setShowChangePwd]   = useState(false);
   const [showAbout,       setShowAbout]       = useState(false);
+  const [showNotif,       setShowNotif]       = useState(false);  // ← NEW
 
   React.useEffect(() => {
-    // Safely load user — won't crash if getUser rejects
     getUser()
       .then((u) => setUser(u || null))
       .catch(() => setUser(null));
@@ -229,11 +335,7 @@ export default function Settings() {
         text: "Log out",
         style: "destructive",
         onPress: async () => {
-          try {
-            await clearSession();
-          } catch (_) {
-            // ignore — clear locally regardless
-          }
+          try { await clearSession(); } catch (_) {}
           router.replace("/(auth)/login");
         },
       },
@@ -250,7 +352,6 @@ export default function Settings() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            // await userAPI.deleteAccount();
             Alert.alert("Account deleted", "Your account has been removed.");
           },
         },
@@ -309,10 +410,8 @@ export default function Settings() {
             iconName="notifications-outline"
             iconBg="#fefce8"
             label="Notifications"
-            sublabel="Orders, messages, help"
-            onPress={() =>
-              Alert.alert("Coming soon", "Notification settings coming in the next update.")
-            }
+            sublabel="Orders, messages, ratings, help"
+            onPress={() => setShowNotif(true)}   // ← opens modal now
           />
         </Section>
 
@@ -334,7 +433,7 @@ export default function Settings() {
           />
         </Section>
 
-        {/* My Ratings — wrapped in a try/catch boundary via ErrorBoundary below */}
+        {/* My Ratings */}
         <Section title="My ratings">
           <View style={{ padding: 14 }}>
             <MyRatings />
@@ -377,6 +476,10 @@ export default function Settings() {
       <AboutModal
         visible={showAbout}
         onClose={() => setShowAbout(false)}
+      />
+      <NotifSettingsModal                          
+        visible={showNotif}
+        onClose={() => setShowNotif(false)}
       />
     </View>
   );
@@ -452,7 +555,7 @@ const s = StyleSheet.create({
 const m = StyleSheet.create({
   overlay:   { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet:     { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 44 },
-  title:     { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 20 },
+  title:     { fontSize: 18, fontWeight: "700", color: "#1a1a1a", marginBottom: 4 },
   label:     { fontSize: 11, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
   input:     { backgroundColor: "#f8f7f4", borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: "#1a1a1a", marginBottom: 16, borderWidth: 1, borderColor: "#e5e5e5" },
   btnRow:    { flexDirection: "row", gap: 12, marginTop: 4 },
@@ -460,4 +563,18 @@ const m = StyleSheet.create({
   cancelText:{ fontWeight: "600", color: "#6b7280" },
   saveBtn:   { flex: 1, backgroundColor: "#1a1a1a", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   saveText:  { fontWeight: "700", color: "#fff" },
+});
+
+// ── Notification modal styles ──────────────────────────────────────────────────
+const nf = StyleSheet.create({
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 },
+  modalIconBox:{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#fefce8", justifyContent: "center", alignItems: "center" },
+  modalSub:    { fontSize: 12, color: "#9ca3af", marginTop: 2 },
+
+  row:       { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 },
+  rowBorder: { borderBottomWidth: 0.5, borderBottomColor: "#f3f4f6" },
+  iconBox:   { width: 38, height: 38, borderRadius: 10, justifyContent: "center", alignItems: "center", flexShrink: 0 },
+  info:      { flex: 1 },
+  label:     { fontSize: 14, fontWeight: "600", color: "#1a1a1a" },
+  sub:       { fontSize: 11, color: "#9ca3af", marginTop: 1 },
 });
