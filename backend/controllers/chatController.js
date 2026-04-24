@@ -33,4 +33,26 @@ async function getUnread(req, res) {
   }
 }
 
+// PATCH /api/chat/messages/:id
+async function editMessage(req, res) {
+  try {
+    const { newText } = req.body;
+    if (!newText?.trim()) return res.status(400).json({ success: false, message: "Text required" });
+    await chatModel.editMessage(req.params.id, newText.trim());
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+}
+ 
+// DELETE /api/chat/messages/:id
+async function deleteMessage(req, res) {
+  try {
+    await chatModel.deleteMessage(req.params.id);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+}
+
 module.exports = { getConversations, getMessages, getUnread };

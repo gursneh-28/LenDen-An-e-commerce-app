@@ -144,6 +144,8 @@ export const chatAPI = {
   getMessages:      (id) => apiRequest(`/chat/messages/${id}`),
   sendMessage:      (d)  => apiRequest("/chat/messages", "POST", d),
   getUnread:        ()   => apiRequest("/chat/unread"),
+  editMessage: (id, newText) => apiRequest(`/chat/messages/${id}`, "PATCH", { newText }),
+  deleteMessage: (id) => apiRequest(`/chat/messages/${id}`, "DELETE"),
 };
 
 // ── Rating API ────────────────────────────────────────────────────────────────
