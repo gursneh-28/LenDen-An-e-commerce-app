@@ -7,7 +7,7 @@ import {
 import { useRouter } from "expo-router";
 import { requestAPI, getUser, requestRoomId, ratingAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
-import RatingModal from "../(userFeature)/RatingModal";
+import RatingModal from "../components/RatingModal";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 function timeAgo(iso) {

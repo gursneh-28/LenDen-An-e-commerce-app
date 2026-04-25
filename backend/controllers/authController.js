@@ -1,39 +1,29 @@
-// backend/controllers/authController.js
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const bcrypt    = require('bcrypt');
+const jwt       = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const userModel = require('../models/userModel');
+const userModel  = require('../models/userModel');
 const orgRequestModel = require('../models/orgRequestModel');
+const otpModel   = require('../models/otpModel');
 
-// ─── Dynamic Allowed Domains (loaded from approved organizations) ────────────
+// ─── Dynamic Allowed Domains ──────────────────────────────────────────────────
 let ALLOWED_DOMAINS = new Set();
 
-// Function to refresh allowed domains from database
 async function refreshAllowedDomains() {
     try {
-        // Only try to fetch if database is initialized
         if (!orgRequestModel || typeof orgRequestModel.findByStatus !== 'function') {
             console.log('⏳ Waiting for database connection...');
             return;
         }
-        
         const approvedOrgs = await orgRequestModel.findByStatus('approved');
-        const domains = approvedOrgs.map(org => org.domain.toLowerCase());
-        ALLOWED_DOMAINS = new Set(domains);
+        const domains      = approvedOrgs.map(org => org.domain.toLowerCase());
+        ALLOWED_DOMAINS    = new Set(domains);
         console.log('✅ Allowed domains refreshed:', Array.from(ALLOWED_DOMAINS));
     } catch (error) {
         console.error('Failed to refresh allowed domains:', error.message);
-        // Don't throw error, just log it
     }
 }
 
-// Don't call refreshAllowedDomains immediately at top level
-// Export it so server.js can call it after database connection
-
-// ─── OTP Store (in-memory, replace with Redis in production) ─────────────────
-const otpStore = new Map();
-
-// ─── Nodemailer transporter ──────────────────────────────────────────────────
+// ─── Nodemailer ───────────────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -81,9 +71,8 @@ class AuthController {
     async sendOtp(req, res) {
         try {
             const { email } = req.body;
-            if (!email) {
+            if (!email)
                 return res.status(400).json({ success: false, message: 'Email is required' });
-            }
 
             const domain = getDomainFromEmail(email);
             if (!ALLOWED_DOMAINS.has(domain)) {
@@ -94,15 +83,11 @@ class AuthController {
             }
 
             const existing = await userModel.findByEmail(email);
-            if (existing) {
+            if (existing)
                 return res.status(400).json({ success: false, message: 'An account with this email already exists' });
-            }
 
             const otp = generateOtp();
-            const expiresAt = Date.now() + 10 * 60 * 1000;
-
-            otpStore.set(email, { otp, expiresAt });
-
+            await otpModel.saveOtp(email, otp);
             await sendOtpEmail(email, otp);
 
             return res.status(200).json({ success: true, message: 'OTP sent to your email' });
@@ -116,37 +101,37 @@ class AuthController {
         try {
             const { username, email, password, otp } = req.body;
 
-            if (!username || !email || !password || !otp) {
+            if (!username || !email || !password || !otp)
                 return res.status(400).json({ success: false, message: 'All fields are required' });
-            }
 
-            const record = otpStore.get(email);
-            if (!record) {
+            const record = await otpModel.getOtp(email);
+
+            if (!record)
                 return res.status(400).json({ success: false, message: 'No OTP found for this email. Please request a new one.' });
-            }
-            if (Date.now() > record.expiresAt) {
-                otpStore.delete(email);
+
+            // TTL index handles expiry automatically but check manually as safety net
+            if (new Date() > new Date(record.expiresAt)) {
+                await otpModel.deleteOtp(email);
                 return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
             }
-            if (record.otp !== otp) {
+
+            if (record.otp !== otp)
                 return res.status(400).json({ success: false, message: 'Incorrect OTP. Please try again.' });
-            }
 
-            otpStore.delete(email);
+            await otpModel.deleteOtp(email);
 
-            const existing = await userModel.findByEmail(email);
-            if (existing) {
+            const existingUser = await userModel.findByEmail(email);
+            if (existingUser)
                 return res.status(400).json({ success: false, message: 'An account with this email already exists' });
-            }
 
-            const domain = getDomainFromEmail(email);
+            const domain         = getDomainFromEmail(email);
             const hashedPassword = await bcrypt.hash(password, 10);
 
             await userModel.createUser({
                 username,
                 email,
-                password: hashedPassword,
-                org: domain,
+                password:      hashedPassword,
+                org:           domain,
                 emailVerified: true,
             });
 
@@ -154,7 +139,6 @@ class AuthController {
                 success: true,
                 message: 'Account created successfully',
             });
-
         } catch (error) {
             console.error('Verify OTP error:', error);
             return res.status(500).json({ success: false, message: error.message });
@@ -164,58 +148,58 @@ class AuthController {
     async login(req, res) {
         try {
             const { email, password } = req.body;
-        
-            if (!email || !password) {
+
+            if (!email || !password)
                 return res.status(400).json({ success: false, message: 'Please provide email and password' });
-            }
-          
+
             const user = await userModel.findByEmail(email);
-            
-            // Check if user exists
+
             if (!user) {
-                // Check if this email is from an allowed domain but not registered
                 const domain = getDomainFromEmail(email);
                 if (ALLOWED_DOMAINS.has(domain)) {
-                    return res.status(401).json({ 
-                        success: false, 
-                        message: 'No account found with this email. Please sign up first.' 
+                    return res.status(401).json({
+                        success: false,
+                        message: 'No account found with this email. Please sign up first.'
                     });
                 } else {
-                    return res.status(401).json({ 
-                        success: false, 
-                        message: `Email domain @${domain} is not allowed. Please use your organization's email domain.` 
+                    return res.status(401).json({
+                        success: false,
+                        message: `Email domain @${domain} is not allowed. Please use your organization's email domain.`
                     });
                 }
             }
-          
-            if (!user.emailVerified) {
-                return res.status(403).json({ 
-                    success: false, 
-                    message: 'Please verify your email before logging in.' 
+
+            if (user.isBlocked)
+                return res.status(403).json({
+                    success: false,
+                    message: 'Your account has been blocked. Please contact your organization admin.'
                 });
-            }
-          
+
+            if (!user.emailVerified)
+                return res.status(403).json({
+                    success: false,
+                    message: 'Please verify your email before logging in.'
+                });
+
             const isPasswordValid = await bcrypt.compare(password, user.password);
-            if (!isPasswordValid) {
-                return res.status(401).json({ 
-                    success: false, 
-                    message: 'Invalid email or password' 
+            if (!isPasswordValid)
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid email or password'
                 });
-            }
-          
+
             const token = jwt.sign(
                 { userId: user._id, email: user.email, name: user.username, org: user.org, role: 'user' },
                 process.env.JWT_SECRET,
                 { expiresIn: '7d' }
             );
-          
+
             return res.status(200).json({
                 success: true,
                 message: 'Login successful',
                 token,
                 user: { id: user._id, username: user.username, email: user.email, org: user.org, role: 'user' },
             });
-          
         } catch (error) {
             console.error('Login error:', error);
             return res.status(500).json({ success: false, message: error.message });

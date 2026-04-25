@@ -79,8 +79,8 @@ export default function Checkout() {
 
   const itemImage   = item.images?.[0] || item.image || null;
   const price       = Number(item.price) || 0;
-  const platformFee = Math.round(price * 0.02);
-  const total       = price + platformFee;
+  const [platformFee, setPlatformFee] = useState(Math.round(price * 0.02));
+  const [total,       setTotal]       = useState(price + Math.round(price * 0.02));
 
   const handlePlaceOrder = async () => {
     if (!user) return Alert.alert("Not logged in", "Please log in to continue.");
@@ -88,21 +88,21 @@ export default function Checkout() {
       setPlacing(true);
       const res = await orderAPI.createOrder({
         itemId:        item._id,
-        itemName:      item.name || item.description?.slice(0, 50) || "Item",
-        itemImage,
-        sellerEmail:   item.uploadedBy,
-        sellerName:    item.uploaderName || "Seller",
-        buyerEmail:    user.email,
-        buyerName:     user.username || user.name || user.email.split("@")[0],
-        price,
-        platformFee,
-        total,
-        orderType,
+        type:          orderType,
         paymentMethod: payMethod,
-        org:           user.org,
+        ...(isRent && item.availability?.[0]
+          ? {
+              rentStart: item.availability[0].start,
+              rentEnd:   item.availability[0].end,
+            }
+          : {}),
       });
-
+    
       if (res?.success) {
+        // Update displayed amounts with backend-confirmed values
+        if (res.platformFee != null) setPlatformFee(res.platformFee);
+        if (res.total       != null) setTotal(res.total);
+      
         Alert.alert(
           "🎉 Order placed!",
           isRent

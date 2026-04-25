@@ -127,6 +127,10 @@ io.on("connection", (socket) => {
 async function startServer() {
   await mongoDB.connect();
 
+  // Create TTL index for OTP collection
+  const otpModel = require('./models/otpModel');
+  await otpModel.createTTLIndex();
+
   await authController.refreshAllowedDomains();
 
   const superAdminModel = require('./models/superAdminModel');

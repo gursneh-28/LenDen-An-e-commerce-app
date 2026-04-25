@@ -183,6 +183,30 @@ class AdminController {
             return res.status(500).json({ success: false, message: error.message });
         }
     }
+
+    async promoteToAdmin(req, res) {
+        try {
+            const { userId } = req.params;
+            const orgDomain  = req.user.orgDomain;
+
+            const user = await userModel.findById(userId);
+            if (!user)
+                return res.status(404).json({ success: false, message: 'User not found' });
+
+            if (user.org !== orgDomain)
+                return res.status(403).json({ success: false, message: 'Unauthorized' });
+
+            await userModel.updateProfile(userId, { role: 'admin', orgDomain });
+
+            return res.status(200).json({
+                success: true,
+                message: `${user.username} has been promoted to admin`
+            });
+        } catch (error) {
+            console.error('Promote to admin error:', error);
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    }
 }
 
 module.exports = new AdminController();

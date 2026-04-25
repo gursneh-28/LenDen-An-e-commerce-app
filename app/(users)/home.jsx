@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { itemAPI, userAPI, notificationAPI } from "../../services/api";
+import { itemAPI, userAPI, notificationAPI, chatAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -96,7 +96,6 @@ export default function Home() {
 
   const fetchUnread = async () => {
     try {
-      const { chatAPI } = require("../../services/api");
       const res = await chatAPI.getUnread();
       if (res.success) setUnreadCount(res.count || 0);
     } catch {}

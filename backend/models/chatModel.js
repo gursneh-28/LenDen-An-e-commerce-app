@@ -42,19 +42,25 @@ async function countUnread(email) {
 }
 
 async function editMessage(messageId, newText) {
-  const { ObjectId } = require("mongodb");
-  const c = await getCollection("messages"); // use whatever your collection getter is
+  const c = await msgs();
   return await c.updateOne(
     { _id: new ObjectId(messageId) },
     { $set: { text: newText, edited: true, editedAt: new Date() } }
   );
 }
- 
+
 async function deleteMessage(messageId) {
-  const { ObjectId } = require("mongodb");
-  const c = await getCollection("messages");
+  const c = await msgs();
   return await c.deleteOne({ _id: new ObjectId(messageId) });
 }
 
-module.exports = { upsertConversation, saveMessage, getMessages, getConversations, markRead, countUnread, 
-  editMessage, deleteMessage, };
+module.exports = {
+  upsertConversation,
+  saveMessage,
+  getMessages,
+  getConversations,
+  markRead,
+  countUnread,
+  editMessage,
+  deleteMessage,
+};

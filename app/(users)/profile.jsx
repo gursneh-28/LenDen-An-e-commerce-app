@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { itemAPI, requestAPI, orderAPI, userAPI, getUser, clearSession } from "../../services/api";
-import RatingModal from "../(userFeature)/RatingModal";
+import RatingModal from "../components/RatingModal";
 import { ratingAPI } from "../../services/api";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -165,7 +165,13 @@ function WishlistModal({ visible, onClose, allItems, wishlistIds, onToggle, rout
             <Text style={wl.emptySub}>
               Tap ♡ on any listing in the home feed to save it here
             </Text>
-            <TouchableOpacity style={wl.browseBtn} onPress={onClose}>
+            <TouchableOpacity
+              style={wl.browseBtn}
+              onPress={() => {
+                onClose();
+                router.push("/(users)/home");
+              }}
+            >
               <Text style={wl.browseBtnText}>Browse listings</Text>
             </TouchableOpacity>
           </View>

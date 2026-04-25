@@ -1,4 +1,5 @@
 const mongoDB = require('../config/db');
+const bcrypt  = require('bcrypt');
 
 const collectionName = 'superAdmins';
 
@@ -6,19 +7,36 @@ async function getCollection() {
     return mongoDB.getCollection(collectionName);
 }
 
-// Initialize hardcoded super admins
 async function initializeSuperAdmins() {
     const collection = await getCollection();
-    const superAdmins = [
-        { email: 'gursnehkaur1@gmail.com', password: '122333', role: 'super_admin', createdAt: new Date() },
-        { email: 'pakhisharma214@gmail.com', password: '122333', role: 'super_admin', createdAt: new Date() },
-        { email: 'nagaltanishka@gmail.com', password: '122333', role: 'super_admin', createdAt: new Date() }
-    ];
-    
-    for (const admin of superAdmins) {
-        const existing = await collection.findOne({ email: admin.email });
+
+    const emails = (process.env.SUPER_ADMIN_EMAILS || '')
+        .split(',')
+        .map(e => e.trim())
+        .filter(Boolean);
+
+    if (emails.length === 0) {
+        console.warn('⚠️  No SUPER_ADMIN_EMAILS defined in .env — skipping super admin init.');
+        return;
+    }
+
+    const defaultPassword = process.env.SUPER_ADMIN_DEFAULT_PASSWORD;
+    if (!defaultPassword) {
+        console.warn('⚠️  No SUPER_ADMIN_DEFAULT_PASSWORD defined in .env — skipping super admin init.');
+        return;
+    }
+
+    for (const email of emails) {
+        const existing = await collection.findOne({ email });
         if (!existing) {
-            await collection.insertOne(admin);
+            const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+            await collection.insertOne({
+                email,
+                password:  hashedPassword,
+                role:      'super_admin',
+                createdAt: new Date(),
+            });
+            console.log(`✅ Super admin created: ${email}`);
         }
     }
 }
@@ -28,16 +46,17 @@ async function findByEmail(email) {
     return await collection.findOne({ email });
 }
 
-async function createSuperAdmin(email, password) {
+async function createSuperAdmin(email, plainPassword) {
     const collection = await getCollection();
-    const existing = await collection.findOne({ email });
+    const existing   = await collection.findOne({ email });
     if (existing) throw new Error('Super admin already exists');
-    
+
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
     const newAdmin = {
         email,
-        password,
-        role: 'super_admin',
-        createdAt: new Date()
+        password:  hashedPassword,
+        role:      'super_admin',
+        createdAt: new Date(),
     };
     const result = await collection.insertOne(newAdmin);
     return { ...newAdmin, _id: result.insertedId };
@@ -59,5 +78,5 @@ module.exports = {
     findByEmail,
     createSuperAdmin,
     findAll,
-    deleteSuperAdmin
+    deleteSuperAdmin,
 };

@@ -5,8 +5,7 @@ const orgRequestModel = require('../models/orgRequestModel');
 const superAdminModel = require('../models/superAdminModel');
 const userModel = require('../models/userModel');
 
-// OTP store for admin registration
-const adminOtpStore = new Map();
+const otpModel = require('../models/otpModel');
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -46,29 +45,22 @@ class AdminAuthController {
     async sendAdminOtp(req, res) {
         try {
             const { email } = req.body;
-            
-            if (!email) {
+
+            if (!email)
                 return res.status(400).json({ success: false, message: 'Email is required' });
-            }
 
-            // Check if organization already exists
             const existingRequest = await orgRequestModel.findByEmail(email);
-            if (existingRequest) {
+            if (existingRequest)
                 return res.status(400).json({ success: false, message: 'Organization already registered with this email' });
-            }
 
-            // Check if user already exists
             const existingUser = await userModel.findByEmail(email);
-            if (existingUser) {
+            if (existingUser)
                 return res.status(400).json({ success: false, message: 'Email already registered as a user' });
-            }
 
             const otp = generateOtp();
-            const expiresAt = Date.now() + 10 * 60 * 1000;
-            
-            adminOtpStore.set(email, { otp, expiresAt });
+            await otpModel.saveOtp(`admin_${email}`, otp);
             await sendOtpEmail(email, otp);
-            
+
             return res.status(200).json({ success: true, message: 'OTP sent to your email' });
         } catch (error) {
             console.error('Send admin OTP error:', error);
@@ -79,50 +71,46 @@ class AdminAuthController {
     async registerOrganization(req, res) {
         try {
             const { orgName, adminEmail, adminName, contactNumber, password, domain, otp } = req.body;
-            
-            if (!orgName || !adminEmail || !adminName || !contactNumber || !password || !domain || !otp) {
+        
+            if (!orgName || !adminEmail || !adminName || !contactNumber || !password || !domain || !otp)
                 return res.status(400).json({ success: false, message: 'All fields are required' });
-            }
-
+        
             // Verify OTP
-            const record = adminOtpStore.get(adminEmail);
-            if (!record) {
+            const record = await otpModel.getOtp(`admin_${adminEmail}`);
+    
+            if (!record)
                 return res.status(400).json({ success: false, message: 'No OTP found. Please request a new one.' });
-            }
-            if (Date.now() > record.expiresAt) {
-                adminOtpStore.delete(adminEmail);
+        
+            if (new Date() > new Date(record.expiresAt)) {
+                await otpModel.deleteOtp(`admin_${adminEmail}`);
                 return res.status(400).json({ success: false, message: 'OTP has expired. Please request a new one.' });
             }
-            if (record.otp !== otp) {
+        
+            if (record.otp !== otp)
                 return res.status(400).json({ success: false, message: 'Incorrect OTP. Please try again.' });
-            }
-
-            // Clear OTP
-            adminOtpStore.delete(adminEmail);
-            
-            // Check again if organization exists
+        
+            await otpModel.deleteOtp(`admin_${adminEmail}`);
+    
             const existingRequest = await orgRequestModel.findByEmail(adminEmail);
-            if (existingRequest) {
+            if (existingRequest)
                 return res.status(400).json({ success: false, message: 'Organization already registered with this email' });
-            }
-            
+        
             const existingUser = await userModel.findByEmail(adminEmail);
-            if (existingUser) {
+            if (existingUser)
                 return res.status(400).json({ success: false, message: 'Email already registered as a user' });
-            }
-            
+        
             const hashedPassword = await bcrypt.hash(password, 10);
-            
+    
             const orgRequest = await orgRequestModel.createOrgRequest({
                 orgName,
                 adminEmail,
                 adminName,
                 contactNumber,
                 password: hashedPassword,
-                domain: domain.toLowerCase(),
-                status: 'pending'
+                domain:   domain.toLowerCase(),
+                status:   'pending'
             });
-            
+        
             return res.status(201).json({
                 success: true,
                 message: 'Organization registration request submitted successfully. You will receive an email once approved.',
@@ -137,60 +125,61 @@ class AdminAuthController {
     async adminLogin(req, res) {
         try {
             const { email, password } = req.body;
-            
-            // Check super admin
+
             const superAdmin = await superAdminModel.findByEmail(email);
-            if (superAdmin && superAdmin.password === password) {
-                const token = jwt.sign(
-                    { userId: superAdmin._id, email: superAdmin.email, role: 'super_admin' },
-                    process.env.JWT_SECRET,
-                    { expiresIn: '7d' }
-                );
-                return res.status(200).json({
-                    success: true,
-                    message: 'Super admin login successful',
-                    token,
-                    user: { email: superAdmin.email, role: 'super_admin' }
-                });
+            if (superAdmin) {
+                const isMatch = await bcrypt.compare(password, superAdmin.password);
+                if (isMatch) {
+                    const token = jwt.sign(
+                        { userId: superAdmin._id, email: superAdmin.email, role: 'super_admin' },
+                        process.env.JWT_SECRET,
+                        { expiresIn: '7d' }
+                    );
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Super admin login successful',
+                        token,
+                        user: { email: superAdmin.email, role: 'super_admin' }
+                    });
+                }
             }
-            
-            // Check organization admin
+
             const orgRequest = await orgRequestModel.findByEmail(email);
             if (!orgRequest) {
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
-            
+
             if (orgRequest.status !== 'approved') {
-                return res.status(403).json({ 
-                    success: false, 
-                    message: `Organization registration is ${orgRequest.status}. Please wait for approval.` 
+                return res.status(403).json({
+                    success: false,
+                    message: `Organization registration is ${orgRequest.status}. Please wait for approval.`
                 });
             }
-            
+
             const isPasswordValid = await bcrypt.compare(password, orgRequest.password);
             if (!isPasswordValid) {
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
-            
+
             const token = jwt.sign(
-                { 
-                    userId: orgRequest._id, 
-                    email: orgRequest.adminEmail, 
-                    role: 'admin', 
-                    orgDomain: orgRequest.domain, 
-                    orgName: orgRequest.orgName 
+                {
+                    userId: orgRequest._id,
+                    email: orgRequest.adminEmail,
+                    role: 'admin',
+                    orgDomain: orgRequest.domain,
+                    orgName: orgRequest.orgName
                 },
                 process.env.JWT_SECRET,
                 { expiresIn: '7d' }
             );
-            
+
             return res.status(200).json({
                 success: true,
                 message: 'Admin login successful',
                 token,
-                user: { 
-                    email: orgRequest.adminEmail, 
-                    role: 'admin', 
+                user: {
+                    email: orgRequest.adminEmail,
+                    role: 'admin',
                     orgName: orgRequest.orgName,
                     orgDomain: orgRequest.domain
                 }

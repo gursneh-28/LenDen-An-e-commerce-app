@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ActivityIndicator,
 } from "react-native";
 import { ratingAPI } from "../../services/api";
-import { StarDisplay } from "./StarRating";
+import { StarDisplay } from "../components/StarRating";
 
 function timeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime();

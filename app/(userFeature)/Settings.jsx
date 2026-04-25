@@ -32,9 +32,26 @@ function EditProfileModal({ visible, user, onClose, onSave }) {
   }, [user]);
 
   const save = async () => {
-    if (!username.trim()) return Alert.alert("Required", "Name cannot be empty.");
+    if (!username.trim())
+      return Alert.alert("Required", "Name cannot be empty.");
     try {
       setSaving(true);
+      const { userAPI } = require("../../services/api");
+      await userAPI.updateProfile({
+        username:    username.trim(),
+        phoneNumber: phone.trim(),
+      });
+      // Update AsyncStorage so home screen greeting updates too
+      const AsyncStorage = require("@react-native-async-storage/async-storage").default;
+      const raw  = await AsyncStorage.getItem("user");
+      if (raw) {
+        const stored = JSON.parse(raw);
+        await AsyncStorage.setItem("user", JSON.stringify({
+          ...stored,
+          username:    username.trim(),
+          phoneNumber: phone.trim(),
+        }));
+      }
       Alert.alert("Saved", "Profile updated successfully.");
       onSave?.({ username: username.trim(), phoneNumber: phone.trim() });
       onClose();
@@ -104,6 +121,11 @@ function ChangePasswordModal({ visible, onClose }) {
       return Alert.alert("Mismatch", "New passwords don't match.");
     try {
       setSaving(true);
+      const { userAPI } = require("../../services/api");
+      await userAPI.changePassword({
+        currentPassword: current,
+        newPassword:     next,
+      });
       Alert.alert("Done", "Password changed successfully.");
       setCurrent(""); setNext(""); setConfirm("");
       onClose();

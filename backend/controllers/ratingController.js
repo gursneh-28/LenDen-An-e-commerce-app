@@ -1,8 +1,7 @@
 const ratingModel = require("../models/ratingModel");
+const notificationModel = require("../models/notificationModel");
 
 // POST /api/ratings/submit
-// body: { ratedEmail, stars, comment, contextId, contextType }
-// contextType: "order" | "help"
 async function submitRating(req, res) {
   try {
     const { ratedEmail, stars, comment, contextId, contextType } = req.body;
@@ -16,7 +15,6 @@ async function submitRating(req, res) {
     if (ratedEmail === req.user.email)
       return res.status(400).json({ success: false, message: "You cannot rate yourself" });
 
-    // Prevent duplicate ratings for the same order/help request
     const alreadyRated = await ratingModel.hasRated(req.user.email, contextId, contextType);
     if (alreadyRated)
       return res.status(400).json({ success: false, message: "You already rated this" });
@@ -28,8 +26,21 @@ async function submitRating(req, res) {
       stars:       Number(stars),
       comment:     comment?.trim() || "",
       contextId,
-      contextType, // "order" or "help"
+      contextType,
       org:         req.user.org,
+    });
+
+    // Notify the rated user
+    const STAR_LABELS = { 1: "⭐", 2: "⭐⭐", 3: "⭐⭐⭐", 4: "⭐⭐⭐⭐", 5: "⭐⭐⭐⭐⭐" };
+    const contextLabel = contextType === "order" ? "a purchase" : "a help request";
+
+    await notificationModel.createNotification({
+      recipientEmail: ratedEmail,
+      type:           "rating",
+      title:          "You received a new rating",
+      body:           `${req.user.name || req.user.email} rated you ${STAR_LABELS[stars]} for ${contextLabel}${comment?.trim() ? `: "${comment.trim().slice(0, 60)}"` : "."}`,
+      meta:           { contextId, contextType, stars, raterEmail: req.user.email },
+      org:            req.user.org,
     });
 
     res.status(201).json({ success: true, message: "Rating submitted" });
@@ -38,7 +49,7 @@ async function submitRating(req, res) {
   }
 }
 
-// GET /api/ratings/user/:email  — all ratings for a specific user
+// GET /api/ratings/user/:email
 async function getUserRatings(req, res) {
   try {
     const ratings = await ratingModel.getRatingsForUser(req.params.email);
@@ -48,7 +59,7 @@ async function getUserRatings(req, res) {
   }
 }
 
-// GET /api/ratings/summary/:email  — average + count for a user
+// GET /api/ratings/summary/:email
 async function getUserRatingSummary(req, res) {
   try {
     const summary = await ratingModel.getRatingSummary(req.params.email);
@@ -58,7 +69,7 @@ async function getUserRatingSummary(req, res) {
   }
 }
 
-// GET /api/ratings/mine  — ratings I received
+// GET /api/ratings/mine
 async function getMyRatings(req, res) {
   try {
     const ratings = await ratingModel.getRatingsForUser(req.user.email);
@@ -69,7 +80,7 @@ async function getMyRatings(req, res) {
   }
 }
 
-// GET /api/ratings/check/:contextId/:contextType  — did I already rate this?
+// GET /api/ratings/check/:contextId/:contextType
 async function checkRated(req, res) {
   try {
     const { contextId, contextType } = req.params;

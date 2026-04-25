@@ -93,11 +93,12 @@ export const itemAPI = {
 };
 
 export const requestAPI = {
-  createRequest: (data) => apiRequest("/requests/create", "POST", data),
-  getRequests: () => apiRequest("/requests/all"),
-  getMyRequests: () => apiRequest("/requests/mine"),
-  updateRequest: (id, data) => apiRequest(`/requests/${id}`, "PUT", data),
-  deleteRequest: (id) => apiRequest(`/requests/${id}`, "DELETE"),
+  createRequest:  (data)    => apiRequest("/requests/create", "POST", data),
+  getRequests:    ()        => apiRequest("/requests/all"),
+  getMyRequests:  ()        => apiRequest("/requests/mine"),
+  updateRequest:  (id, data)=> apiRequest(`/requests/${id}`, "PUT", data),
+  resolveRequest: (id)      => apiRequest(`/requests/${id}/resolve`, "PATCH"),
+  deleteRequest:  (id)      => apiRequest(`/requests/${id}`, "DELETE"),
 };
 
 export const orderAPI = {
@@ -136,6 +137,8 @@ export const userAPI = {
       throw error;
     }
   },
+  updateProfile:  (data) => apiRequest("/user/profile",          "PATCH", data),
+  changePassword: (data) => apiRequest("/user/change-password",  "PATCH", data),
 };
 
 export const chatAPI = {
@@ -202,13 +205,14 @@ export const superAdminAPI = {
 };
 
 export const adminAPI = {
-    getUsers: () => apiRequest("/admin/users"),
-    getUserItems: (userId) => apiRequest(`/admin/users/${userId}/items`),
-    getUserRequests: (userId) => apiRequest(`/admin/users/${userId}/requests`),
-    blockUser: (userId, isBlocked) => apiRequest(`/admin/users/${userId}/block`, "PATCH", { isBlocked }),
-    deleteItem: (itemId) => apiRequest(`/admin/items/${itemId}`, "DELETE"),
-    deleteRequest: (requestId) => apiRequest(`/admin/requests/${requestId}`, "DELETE"),
-    getStats: () => apiRequest("/admin/stats"),
+    getUsers:       ()                  => apiRequest("/admin/users"),
+    getUserItems:   (userId)            => apiRequest(`/admin/users/${userId}/items`),
+    getUserRequests:(userId)            => apiRequest(`/admin/users/${userId}/requests`),
+    blockUser:      (userId, isBlocked) => apiRequest(`/admin/users/${userId}/block`, "PATCH", { isBlocked }),
+    promoteToAdmin: (userId)            => apiRequest(`/admin/users/${userId}/promote`, "PATCH"),
+    deleteItem:     (itemId)            => apiRequest(`/admin/items/${itemId}`, "DELETE"),
+    deleteRequest:  (requestId)         => apiRequest(`/admin/requests/${requestId}`, "DELETE"),
+    getStats:       ()                  => apiRequest("/admin/stats"),
 };
 
 export const notificationAPI = {

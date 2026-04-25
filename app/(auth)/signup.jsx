@@ -313,7 +313,7 @@ export default function SignupScreen() {
         showAlert(
             '🎉 You\'re in!',
             'Account verified. Please log in.',
-            () => router.replace('/login')
+            () => router.replace('/(auth)/login')
         );
     };
 
