@@ -11,6 +11,7 @@ import {
     Platform,
     ScrollView,
     StatusBar,
+    Image, 
 } from 'react-native';
 import { router } from 'expo-router';
 import { authAPI } from '../../services/api';
@@ -330,11 +331,15 @@ export default function SignupScreen() {
             >
                 {/* Brand */}
                 <View style={styles.brandContainer}>
-                    <View style={styles.logoMark}>
-                        <Text style={styles.logoText}>↕</Text>
-                    </View>
-                    <Text style={styles.brandName}>lenden</Text>
-                    <Text style={styles.brandTagline}>campus lending, simplified</Text>
+                    <Image
+                        source={require('../../assets/splash-icon.png')}
+                        style={styles.logoImage}
+                        resizeMode="contain"
+                    />
+                    <Text style={styles.brandText}>
+                        LE<Text style={styles.brandTextDevanagari}>न</Text>-<Text style={styles.brandTextDevanagari}>दे</Text>न
+                    </Text>
+                    <Text style={styles.brandTagline}>Organization Lending & Marketplace Simplified</Text>
                 </View>
 
                 {/* Steps indicator */}
@@ -364,7 +369,7 @@ export default function SignupScreen() {
                 )}
 
                 <Text style={styles.disclaimer}>
-                    Only verified college email addresses are accepted
+                    Only verified organization email addresses are accepted
                 </Text>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -382,25 +387,32 @@ const styles = StyleSheet.create({
 
     // Brand
     brandContainer: { alignItems: 'center', marginBottom: 32 },
-    logoMark: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        backgroundColor: '#1A1A1A',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 14,
+    logoImage: {
+        width: 115,
+        height: 115,
+        marginBottom: 4,
     },
-    logoText: { fontSize: 24, color: '#FAFAF7' },
-    brandName: {
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        fontSize: 34,
+    brandImage: {
+        width: 160,
+        height: 45,
+        marginBottom: 2,
+    },
+    brandText: {
+        fontSize: 36,
         fontWeight: '700',
         color: '#1A1A1A',
-        letterSpacing: -1,
+        letterSpacing: 1,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        includeFontPadding: false,
+    },
+    brandTextDevanagari: {
+        fontSize: 36,
+        fontWeight: '700',
+        color: '#1A1A1A',
+        fontFamily: Platform.OS === 'ios' ? 'Kohinoor Devanagari' : 'sans-serif',
+        includeFontPadding: false,
     },
     brandTagline: { fontSize: 13, color: '#888880', marginTop: 4, letterSpacing: 0.3 },
-
     // Steps
     stepsRow: {
         flexDirection: 'row',
