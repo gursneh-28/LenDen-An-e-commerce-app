@@ -73,7 +73,7 @@ class AuthController {
             const { email } = req.body;
             if (!email)
                 return res.status(400).json({ success: false, message: 'Email is required' });
-
+        
             const domain = getDomainFromEmail(email);
             if (!ALLOWED_DOMAINS.has(domain)) {
                 return res.status(403).json({
@@ -81,19 +81,23 @@ class AuthController {
                     message: `Email domain @${domain} is not allowed. Please use your organization's email domain.`,
                 });
             }
-
+        
             const existing = await userModel.findByEmail(email);
             if (existing)
                 return res.status(400).json({ success: false, message: 'An account with this email already exists' });
-
+        
             const otp = generateOtp();
             await otpModel.saveOtp(email, otp);
-            await sendOtpEmail(email, otp);
-
-            return res.status(200).json({ success: true, message: 'OTP sent to your email' });
+    
+            // Return OTP directly — no email needed
+            return res.status(200).json({
+                success: true,
+                message: 'OTP generated successfully',
+                otp,  // ← send it back
+            });
         } catch (error) {
             console.error('Send OTP error:', error);
-            return res.status(500).json({ success: false, message: 'Failed to send OTP. Please try again.' });
+            return res.status(500).json({ success: false, message: 'Failed to generate OTP. Please try again.' });
         }
     }
 

@@ -45,23 +45,27 @@ class AdminAuthController {
     async sendAdminOtp(req, res) {
         try {
             const { email } = req.body;
-
+            
             if (!email)
                 return res.status(400).json({ success: false, message: 'Email is required' });
-
+        
             const existingRequest = await orgRequestModel.findByEmail(email);
             if (existingRequest)
                 return res.status(400).json({ success: false, message: 'Organization already registered with this email' });
-
+        
             const existingUser = await userModel.findByEmail(email);
             if (existingUser)
                 return res.status(400).json({ success: false, message: 'Email already registered as a user' });
-
+        
             const otp = generateOtp();
             await otpModel.saveOtp(`admin_${email}`, otp);
-            await sendOtpEmail(email, otp);
-
-            return res.status(200).json({ success: true, message: 'OTP sent to your email' });
+    
+            // Return OTP directly
+            return res.status(200).json({
+                success: true,
+                message: 'OTP generated successfully',
+                otp,  // ← send it back
+            });
         } catch (error) {
             console.error('Send admin OTP error:', error);
             return res.status(500).json({ success: false, message: error.message });

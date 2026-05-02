@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from 'react-native';
 
 // ─── Toggle this to test locally ─────────────────────────────────────────────
-const LOCAL_MODE = false;
+const LOCAL_MODE = true;
 const LOCAL_IP   = "172.16.61.155";
 const LOCAL_PORT = 5000;
 // ─────────────────────────────────────────────────────────────────────────────

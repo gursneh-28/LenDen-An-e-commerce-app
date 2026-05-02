@@ -1,38 +1,6 @@
-// backend/controllers/superAdminController.js
 const orgRequestModel = require('../models/orgRequestModel');
 const superAdminModel = require('../models/superAdminModel');
 const userModel = require('../models/userModel');
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
-
-// Define sendStatusEmail function inside the file
-async function sendStatusEmail(email, orgName, status, rejectionReason = null) {
-    const subject = `Organization Registration ${status === 'approved' ? 'Approved' : 'Rejected'}`;
-    const html = `
-        <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
-            <h2>Organization Registration Update</h2>
-            <p>Dear Admin,</p>
-            <p>Your organization <strong>${orgName}</strong> has been <strong>${status}</strong>.</p>
-            ${rejectionReason ? `<p>Reason: ${rejectionReason}</p>` : ''}
-            <p>${status === 'approved' ? 'You can now login to your admin dashboard.' : 'Please contact support for more information.'}</p>
-            <p>Best regards,<br>Lenden Team</p>
-        </div>
-    `;
-    
-    await transporter.sendMail({
-        from: `"Lenden" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject,
-        html,
-    });
-}
 
 class SuperAdminController {
     async getPendingOrganizations(req, res) {
@@ -79,11 +47,8 @@ class SuperAdminController {
             }
             
             await orgRequestModel.updateStatus(orgId, 'approved');
+            console.log(`✅ Org approved: ${orgRequest.orgName} — admin: ${orgRequest.adminEmail}`);
             
-            // Send email notification
-            await sendStatusEmail(orgRequest.adminEmail, orgRequest.orgName, 'approved');
-            
-            // Refresh allowed domains (import authController at top)
             const authController = require('./authController');
             if (authController.refreshAllowedDomains) {
                 await authController.refreshAllowedDomains();
@@ -107,7 +72,7 @@ class SuperAdminController {
             }
             
             await orgRequestModel.updateStatus(orgId, 'rejected', reason);
-            await sendStatusEmail(orgRequest.adminEmail, orgRequest.orgName, 'rejected', reason);
+            console.log(`❌ Org rejected: ${orgRequest.orgName} — admin: ${orgRequest.adminEmail}, reason: ${reason}`);
             
             return res.status(200).json({ success: true, message: 'Organization rejected successfully' });
         } catch (error) {
@@ -129,22 +94,8 @@ class SuperAdminController {
                 return res.status(400).json({ success: false, message: 'User is already a super admin' });
             }
             
-            await superAdminModel.createSuperAdmin(email, '122333');
-            
-            await transporter.sendMail({
-                from: `"Lenden" <${process.env.EMAIL_USER}>`,
-                to: email,
-                subject: 'You have been made a Super Admin',
-                html: `
-                    <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 40px 24px;">
-                        <h2>Super Admin Privileges Granted</h2>
-                        <p>You have been granted Super Admin privileges on Lenden.</p>
-                        <p>You can now login with your email and password: <strong>122333</strong></p>
-                        <p>Please change your password after logging in.</p>
-                        <p>Best regards,<br>Lenden Team</p>
-                    </div>
-                `,
-            });
+            await superAdminModel.createSuperAdmin(email, process.env.SUPER_ADMIN_DEFAULT_PASSWORD || 'changeme123');
+            console.log(`⭐ Super admin created: ${email}`);
             
             return res.status(200).json({ success: true, message: 'Super admin added successfully' });
         } catch (error) {

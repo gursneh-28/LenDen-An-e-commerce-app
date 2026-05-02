@@ -53,7 +53,8 @@ function SignupForm({ onSendOtp }) {
         try {
             const response = await authAPI.sendOtp({ email });
             if (response.success) {
-                onSendOtp({ username, email, password });
+                // Pass OTP along so it can be shown to user
+                onSendOtp({ username, email, password, generatedOtp: response.otp });
             }
         } catch (error) {
             showAlert('Error', error.message);
@@ -154,14 +155,16 @@ function OtpVerification({ formData, onSuccess, onBack }) {
     const [canResend, setCanResend] = useState(false);
     const inputRefs = useRef([]);
 
+    // ── Auto-fill OTP on mount ──────────────────────────────────────────────
     useEffect(() => {
+        if (formData.generatedOtp) {
+            const digits = formData.generatedOtp.toString().split('');
+            setOtp(digits);
+        }
+
         const timer = setInterval(() => {
             setResendTimer(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    setCanResend(true);
-                    return 0;
-                }
+                if (prev <= 1) { clearInterval(timer); setCanResend(true); return 0; }
                 return prev - 1;
             });
         }, 1000);
@@ -216,18 +219,18 @@ function OtpVerification({ formData, onSuccess, onBack }) {
     const handleResend = async () => {
         if (!canResend) return;
         try {
-            await authAPI.sendOtp({ email: formData.email });
+            const response = await authAPI.sendOtp({ email: formData.email });
+            // Update generatedOtp in formData and auto-fill
+            if (response.otp) {
+                const digits = response.otp.toString().split('');
+                setOtp(digits);
+                formData.generatedOtp = response.otp;
+            }
             setResendTimer(60);
             setCanResend(false);
-            setOtp(['', '', '', '', '', '']);
-            // restart timer
             const timer = setInterval(() => {
                 setResendTimer(prev => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        setCanResend(true);
-                        return 0;
-                    }
+                    if (prev <= 1) { clearInterval(timer); setCanResend(true); return 0; }
                     return prev - 1;
                 });
             }, 1000);
