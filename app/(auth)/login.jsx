@@ -31,7 +31,8 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
-    const [loginType, setLoginType] = useState('user'); // 'user' or 'admin'
+    const [loginType, setLoginType] = useState('user');
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -143,20 +144,30 @@ export default function LoginScreen() {
 
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Password</Text>
-                        <TextInput
-                            style={[
-                                styles.input,
-                                focusedField === 'password' && styles.inputFocused,
-                            ]}
-                            placeholder="••••••••"
-                            placeholderTextColor="#B8B8AE"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            editable={!loading}
-                            onFocus={() => setFocusedField('password')}
-                            onBlur={() => setFocusedField(null)}
-                        />
+                        <View style={styles.passwordRow}>
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    styles.passwordInput,
+                                    focusedField === 'password' && styles.inputFocused,
+                                ]}
+                                placeholder="••••••••"
+                                placeholderTextColor="#B8B8AE"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                editable={!loading}
+                                onFocus={() => setFocusedField('password')}
+                                onBlur={() => setFocusedField(null)}
+                            />
+                            <TouchableOpacity
+                                style={styles.eyeBtn}
+                                onPress={() => setShowPassword(p => !p)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <TouchableOpacity
@@ -329,6 +340,29 @@ const styles = StyleSheet.create({
         borderColor: '#1A1A1A',
         backgroundColor: '#FFFFFF',
     },
+    passwordRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    passwordInput: {
+        flex: 1,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderRightWidth: 0,
+    },
+    eyeBtn: {
+        borderWidth: 1.5,
+        borderColor: '#E8E8E3',
+        borderLeftWidth: 0,
+        borderTopRightRadius: 12,
+        borderBottomRightRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        backgroundColor: '#FAFAF7',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eyeIcon: { fontSize: 16 },
 
     // Buttons
     primaryButton: {

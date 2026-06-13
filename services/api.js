@@ -3,17 +3,17 @@ import { Platform } from 'react-native';
 
 // ─── Toggle this to test locally ─────────────────────────────────────────────
 const LOCAL_MODE = true;
-const LOCAL_IP   = "172.16.61.155";
+const LOCAL_IP   = "192.168.29.70";
 const LOCAL_PORT = 5000;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE_URL = LOCAL_MODE
   ? `http://${LOCAL_IP}:${LOCAL_PORT}/api`
-  : "https://lenden-an-e-commerce-app.onrender.com/api";
+  : "https://lenden-an-e-commerce-app-9u29.onrender.com/api";
 
 export const SOCKET_URL = LOCAL_MODE
   ? `http://${LOCAL_IP}:${LOCAL_PORT}`
-  : "https://lenden-an-e-commerce-app.onrender.com";
+  : "https://lenden-an-e-commerce-app-9u29.onrender.com";
 
 export async function saveToken(token) {
   await AsyncStorage.setItem("token", token);
@@ -97,6 +97,7 @@ export const requestAPI = {
   getRequests:    ()        => apiRequest("/requests/all"),
   getMyRequests:  ()        => apiRequest("/requests/mine"),
   updateRequest:  (id, data)=> apiRequest(`/requests/${id}`, "PUT", data),
+  payAndResolve:  (id, data)=> apiRequest(`/requests/${id}/pay`, "POST", data),
   resolveRequest: (id)      => apiRequest(`/requests/${id}/resolve`, "PATCH"),
   deleteRequest:  (id)      => apiRequest(`/requests/${id}`, "DELETE"),
 };
@@ -213,6 +214,7 @@ export const adminAPI = {
     deleteItem:     (itemId)            => apiRequest(`/admin/items/${itemId}`, "DELETE"),
     deleteRequest:  (requestId)         => apiRequest(`/admin/requests/${requestId}`, "DELETE"),
     getStats:       ()                  => apiRequest("/admin/stats"),
+    getRevenue:     ()                  => apiRequest("/admin/revenue"),
 };
 
 export const notificationAPI = {

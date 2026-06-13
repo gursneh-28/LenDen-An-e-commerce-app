@@ -34,6 +34,8 @@ function SignupForm({ onSendOtp }) {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     const handleContinue = async () => {
         if (!username || !email || !password || !confirmPassword) {
@@ -103,32 +105,42 @@ function SignupForm({ onSendOtp }) {
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Password</Text>
-                <TextInput
-                    style={[styles.input, focusedField === 'password' && styles.inputFocused]}
-                    placeholder="min. 6 characters"
-                    placeholderTextColor="#B8B8AE"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    editable={!loading}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField(null)}
-                />
+                <View style={styles.passwordRow}>
+                    <TextInput
+                        style={[styles.input, styles.passwordInput, focusedField === 'password' && styles.inputFocused]}
+                        placeholder="min. 6 characters"
+                        placeholderTextColor="#B8B8AE"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        editable={!loading}
+                        onFocus={() => setFocusedField('password')}
+                        onBlur={() => setFocusedField(null)}
+                    />
+                    <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(p => !p)} activeOpacity={0.7}>
+                        <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
-                    style={[styles.input, focusedField === 'confirm' && styles.inputFocused]}
-                    placeholder="repeat password"
-                    placeholderTextColor="#B8B8AE"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry
-                    editable={!loading}
-                    onFocus={() => setFocusedField('confirm')}
-                    onBlur={() => setFocusedField(null)}
-                />
+                <View style={styles.passwordRow}>
+                    <TextInput
+                        style={[styles.input, styles.passwordInput, focusedField === 'confirm' && styles.inputFocused]}
+                        placeholder="repeat password"
+                        placeholderTextColor="#B8B8AE"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry={!showConfirm}
+                        editable={!loading}
+                        onFocus={() => setFocusedField('confirm')}
+                        onBlur={() => setFocusedField(null)}
+                    />
+                    <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowConfirm(p => !p)} activeOpacity={0.7}>
+                        <Text style={styles.eyeIcon}>{showConfirm ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <TouchableOpacity
@@ -482,6 +494,29 @@ const styles = StyleSheet.create({
         backgroundColor: '#FAFAF7',
     },
     inputFocused: { borderColor: '#1A1A1A', backgroundColor: '#FFFFFF' },
+    passwordRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    passwordInput: {
+        flex: 1,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderRightWidth: 0,
+    },
+    eyeBtn: {
+        borderWidth: 1.5,
+        borderColor: '#E8E8E3',
+        borderLeftWidth: 0,
+        borderTopRightRadius: 12,
+        borderBottomRightRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        backgroundColor: '#FAFAF7',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eyeIcon: { fontSize: 16 },
 
     // OTP
     otpContainer: {
