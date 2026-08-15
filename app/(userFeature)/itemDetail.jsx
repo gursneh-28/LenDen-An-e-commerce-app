@@ -6,7 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getUser, itemRoomId, userAPI, ratingAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
-import { RatingBadge } from "./StarRating";  
+import { RatingBadge } from "../components/StarRating";  
 
 const { width: W } = Dimensions.get("window");
 

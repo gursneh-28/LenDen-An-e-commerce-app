@@ -11,6 +11,7 @@ import {
     Platform,
     ScrollView,
     StatusBar,
+    Image, 
 } from 'react-native';
 import { router } from 'expo-router';
 import { authAPI } from '../../services/api';
@@ -33,6 +34,8 @@ function SignupForm({ onSendOtp }) {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     const handleContinue = async () => {
         if (!username || !email || !password || !confirmPassword) {
@@ -52,7 +55,8 @@ function SignupForm({ onSendOtp }) {
         try {
             const response = await authAPI.sendOtp({ email });
             if (response.success) {
-                onSendOtp({ username, email, password });
+                // Pass OTP along so it can be shown to user
+                onSendOtp({ username, email, password, generatedOtp: response.otp });
             }
         } catch (error) {
             showAlert('Error', error.message);
@@ -101,32 +105,42 @@ function SignupForm({ onSendOtp }) {
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Password</Text>
-                <TextInput
-                    style={[styles.input, focusedField === 'password' && styles.inputFocused]}
-                    placeholder="min. 6 characters"
-                    placeholderTextColor="#B8B8AE"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                    editable={!loading}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField(null)}
-                />
+                <View style={styles.passwordRow}>
+                    <TextInput
+                        style={[styles.input, styles.passwordInput, focusedField === 'password' && styles.inputFocused]}
+                        placeholder="min. 6 characters"
+                        placeholderTextColor="#B8B8AE"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        editable={!loading}
+                        onFocus={() => setFocusedField('password')}
+                        onBlur={() => setFocusedField(null)}
+                    />
+                    <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(p => !p)} activeOpacity={0.7}>
+                        <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <View style={styles.inputGroup}>
                 <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
-                    style={[styles.input, focusedField === 'confirm' && styles.inputFocused]}
-                    placeholder="repeat password"
-                    placeholderTextColor="#B8B8AE"
-                    value={confirmPassword}
-                    onChangeText={setConfirmPassword}
-                    secureTextEntry
-                    editable={!loading}
-                    onFocus={() => setFocusedField('confirm')}
-                    onBlur={() => setFocusedField(null)}
-                />
+                <View style={styles.passwordRow}>
+                    <TextInput
+                        style={[styles.input, styles.passwordInput, focusedField === 'confirm' && styles.inputFocused]}
+                        placeholder="repeat password"
+                        placeholderTextColor="#B8B8AE"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry={!showConfirm}
+                        editable={!loading}
+                        onFocus={() => setFocusedField('confirm')}
+                        onBlur={() => setFocusedField(null)}
+                    />
+                    <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowConfirm(p => !p)} activeOpacity={0.7}>
+                        <Text style={styles.eyeIcon}>{showConfirm ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <TouchableOpacity
@@ -153,14 +167,16 @@ function OtpVerification({ formData, onSuccess, onBack }) {
     const [canResend, setCanResend] = useState(false);
     const inputRefs = useRef([]);
 
+    // ── Auto-fill OTP on mount ──────────────────────────────────────────────
     useEffect(() => {
+        if (formData.generatedOtp) {
+            const digits = formData.generatedOtp.toString().split('');
+            setOtp(digits);
+        }
+
         const timer = setInterval(() => {
             setResendTimer(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    setCanResend(true);
-                    return 0;
-                }
+                if (prev <= 1) { clearInterval(timer); setCanResend(true); return 0; }
                 return prev - 1;
             });
         }, 1000);
@@ -215,18 +231,18 @@ function OtpVerification({ formData, onSuccess, onBack }) {
     const handleResend = async () => {
         if (!canResend) return;
         try {
-            await authAPI.sendOtp({ email: formData.email });
+            const response = await authAPI.sendOtp({ email: formData.email });
+            // Update generatedOtp in formData and auto-fill
+            if (response.otp) {
+                const digits = response.otp.toString().split('');
+                setOtp(digits);
+                formData.generatedOtp = response.otp;
+            }
             setResendTimer(60);
             setCanResend(false);
-            setOtp(['', '', '', '', '', '']);
-            // restart timer
             const timer = setInterval(() => {
                 setResendTimer(prev => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        setCanResend(true);
-                        return 0;
-                    }
+                    if (prev <= 1) { clearInterval(timer); setCanResend(true); return 0; }
                     return prev - 1;
                 });
             }, 1000);
@@ -313,7 +329,7 @@ export default function SignupScreen() {
         showAlert(
             '🎉 You\'re in!',
             'Account verified. Please log in.',
-            () => router.replace('/login')
+            () => router.replace('/(auth)/login')
         );
     };
 
@@ -330,11 +346,15 @@ export default function SignupScreen() {
             >
                 {/* Brand */}
                 <View style={styles.brandContainer}>
-                    <View style={styles.logoMark}>
-                        <Text style={styles.logoText}>↕</Text>
-                    </View>
-                    <Text style={styles.brandName}>lenden</Text>
-                    <Text style={styles.brandTagline}>campus lending, simplified</Text>
+                    <Image
+                        source={require('../../assets/splash-icon.png')}
+                        style={styles.logoImage}
+                        resizeMode="contain"
+                    />
+                    <Text style={styles.brandText}>
+                        LE<Text style={styles.brandTextDevanagari}>न</Text>-<Text style={styles.brandTextDevanagari}>दे</Text>न
+                    </Text>
+                    <Text style={styles.brandTagline}>Organization Lending & Marketplace Simplified</Text>
                 </View>
 
                 {/* Steps indicator */}
@@ -364,7 +384,7 @@ export default function SignupScreen() {
                 )}
 
                 <Text style={styles.disclaimer}>
-                    Only verified college email addresses are accepted
+                    Only verified organization email addresses are accepted
                 </Text>
             </ScrollView>
         </KeyboardAvoidingView>
@@ -382,25 +402,32 @@ const styles = StyleSheet.create({
 
     // Brand
     brandContainer: { alignItems: 'center', marginBottom: 32 },
-    logoMark: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        backgroundColor: '#1A1A1A',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 14,
+    logoImage: {
+        width: 115,
+        height: 115,
+        marginBottom: 4,
     },
-    logoText: { fontSize: 24, color: '#FAFAF7' },
-    brandName: {
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        fontSize: 34,
+    brandImage: {
+        width: 160,
+        height: 45,
+        marginBottom: 2,
+    },
+    brandText: {
+        fontSize: 36,
         fontWeight: '700',
         color: '#1A1A1A',
-        letterSpacing: -1,
+        letterSpacing: 1,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        includeFontPadding: false,
+    },
+    brandTextDevanagari: {
+        fontSize: 36,
+        fontWeight: '700',
+        color: '#1A1A1A',
+        fontFamily: Platform.OS === 'ios' ? 'Kohinoor Devanagari' : 'sans-serif',
+        includeFontPadding: false,
     },
     brandTagline: { fontSize: 13, color: '#888880', marginTop: 4, letterSpacing: 0.3 },
-
     // Steps
     stepsRow: {
         flexDirection: 'row',
@@ -467,6 +494,29 @@ const styles = StyleSheet.create({
         backgroundColor: '#FAFAF7',
     },
     inputFocused: { borderColor: '#1A1A1A', backgroundColor: '#FFFFFF' },
+    passwordRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    passwordInput: {
+        flex: 1,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderRightWidth: 0,
+    },
+    eyeBtn: {
+        borderWidth: 1.5,
+        borderColor: '#E8E8E3',
+        borderLeftWidth: 0,
+        borderTopRightRadius: 12,
+        borderBottomRightRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        backgroundColor: '#FAFAF7',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eyeIcon: { fontSize: 16 },
 
     // OTP
     otpContainer: {

@@ -28,7 +28,11 @@
     "mongoose": "^9.2.4",
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5",
+<<<<<<< HEAD
     "resend": "^6.20.0",
+=======
+    "razorpay": "^2.9.6",
+>>>>>>> 4271dfc669c9a211258973eff4fc3f679f9bbfa3
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

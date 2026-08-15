@@ -29,18 +29,21 @@ export default function RegisterOrganization() {
 
     const handleSendOtp = async () => {
         const { adminEmail } = formData;
-        
         if (!adminEmail) {
             Alert.alert('Error', 'Please enter admin email first');
             return;
         }
-
+    
         setLoading(true);
         try {
             const response = await adminAuthAPI.sendAdminOtp({ email: adminEmail });
             if (response.success) {
                 setStep('otp');
-                Alert.alert('Success', 'OTP sent to your email');
+                // Auto-fill the OTP
+                if (response.otp) {
+                    handleChange('otp', response.otp.toString());
+                }
+                Alert.alert('Success', `Your OTP is: ${response.otp}`);
             }
         } catch (error) {
             Alert.alert('Error', error.message);

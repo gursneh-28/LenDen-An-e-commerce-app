@@ -13,6 +13,7 @@ import {
     Platform,
     ScrollView,
     StatusBar,
+    Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { authAPI, adminAuthAPI, saveToken, saveUser } from '../../services/api';
@@ -30,7 +31,8 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
-    const [loginType, setLoginType] = useState('user'); // 'user' or 'admin'
+    const [loginType, setLoginType] = useState('user');
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -83,11 +85,15 @@ export default function LoginScreen() {
             >
                 {/* Brand mark */}
                 <View style={styles.brandContainer}>
-                    <View style={styles.logoMark}>
-                        <Text style={styles.logoText}>↕</Text>
-                    </View>
-                    <Text style={styles.brandName}>lenden</Text>
-                    <Text style={styles.brandTagline}>campus lending, simplified</Text>
+                    <Image
+                        source={require('../../assets/splash-icon.png')}
+                        style={styles.logoImage}
+                        resizeMode="contain"
+                    />
+                    <Text style={styles.brandText}>
+                        LE<Text style={styles.brandTextDevanagari}>न</Text>-<Text style={styles.brandTextDevanagari}>दे</Text>न
+                    </Text>
+                    <Text style={styles.brandTagline}>Organization Lending & Marketplace Simplified</Text>
                 </View>
 
                 {/* Login Type Selector */}
@@ -138,20 +144,30 @@ export default function LoginScreen() {
 
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Password</Text>
-                        <TextInput
-                            style={[
-                                styles.input,
-                                focusedField === 'password' && styles.inputFocused,
-                            ]}
-                            placeholder="••••••••"
-                            placeholderTextColor="#B8B8AE"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            editable={!loading}
-                            onFocus={() => setFocusedField('password')}
-                            onBlur={() => setFocusedField(null)}
-                        />
+                        <View style={styles.passwordRow}>
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    styles.passwordInput,
+                                    focusedField === 'password' && styles.inputFocused,
+                                ]}
+                                placeholder="••••••••"
+                                placeholderTextColor="#B8B8AE"
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry={!showPassword}
+                                editable={!loading}
+                                onFocus={() => setFocusedField('password')}
+                                onBlur={() => setFocusedField(null)}
+                            />
+                            <TouchableOpacity
+                                style={styles.eyeBtn}
+                                onPress={() => setShowPassword(p => !p)}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     <TouchableOpacity
@@ -188,7 +204,7 @@ export default function LoginScreen() {
 
                 {loginType === 'user' && (
                     <Text style={styles.disclaimer}>
-                        Only verified college email addresses are accepted
+                        Only verified organization email addresses are accepted
                     </Text>
                 )}
             </ScrollView>
@@ -208,30 +224,35 @@ const styles = StyleSheet.create({
         paddingVertical: 60,
     },
 
-    // Brand
+    //Brand
     brandContainer: {
         alignItems: 'center',
         marginBottom: 44,
     },
-    logoMark: {
-        width: 52,
-        height: 52,
-        borderRadius: 16,
-        backgroundColor: '#1A1A1A',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 14,
+    logoImage: {
+        width: 115,
+        height: 115,
+        marginBottom: 4,
     },
-    logoText: {
-        fontSize: 24,
-        color: '#FAFAF7',
+    brandImage: {
+        width: 160,
+        height: 45,
+        marginBottom: 2,
     },
-    brandName: {
-        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        fontSize: 34,
+    brandText: {
+        fontSize: 36,
         fontWeight: '700',
         color: '#1A1A1A',
-        letterSpacing: -1,
+        letterSpacing: 1,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        includeFontPadding: false,
+    },
+    brandTextDevanagari: {
+        fontSize: 36,
+        fontWeight: '700',
+        color: '#1A1A1A',
+        fontFamily: Platform.OS === 'ios' ? 'Kohinoor Devanagari' : 'sans-serif',
+        includeFontPadding: false,
     },
     brandTagline: {
         fontSize: 13,
@@ -319,6 +340,29 @@ const styles = StyleSheet.create({
         borderColor: '#1A1A1A',
         backgroundColor: '#FFFFFF',
     },
+    passwordRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    passwordInput: {
+        flex: 1,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderRightWidth: 0,
+    },
+    eyeBtn: {
+        borderWidth: 1.5,
+        borderColor: '#E8E8E3',
+        borderLeftWidth: 0,
+        borderTopRightRadius: 12,
+        borderBottomRightRadius: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 14,
+        backgroundColor: '#FAFAF7',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    eyeIcon: { fontSize: 16 },
 
     // Buttons
     primaryButton: {

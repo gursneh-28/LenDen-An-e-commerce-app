@@ -7,7 +7,8 @@ import {
 import { useRouter } from "expo-router";
 import { requestAPI, getUser, requestRoomId, ratingAPI } from "../../services/api";
 import { Ionicons } from "@expo/vector-icons";
-import RatingModal from "../(userFeature)/RatingModal";
+import RatingModal from "../components/RatingModal";
+import { useRazorpay } from "../../services/paymentService";
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 function timeAgo(iso) {
@@ -37,10 +38,13 @@ const SORTS = [
 ];
 
 // ── RequestCard ────────────────────────────────────────────────────────────────
-function RequestCard({ item, onChat, currentUserEmail, onRate, alreadyRated }) {
+function RequestCard({ item, onChat, onPay, currentUserEmail, onRate, alreadyRated }) {
   const isRequester  = currentUserEmail === item.requestedBy;
-  // Only show rate button if resolved + current user is the one who made the request + not yet rated
+  const isOpen       = item.status === "open";
+  const isHelper     = !isRequester;
   const showRateBtn  = item.status === "resolved" && isRequester && !alreadyRated;
+  // Requester sees Pay button on their own open requests (after agreeing with helper via chat)
+  const showPayBtn   = isOpen && isRequester;
 
   return (
     <View style={s.card}>
@@ -86,6 +90,14 @@ function RequestCard({ item, onChat, currentUserEmail, onRate, alreadyRated }) {
         </TouchableOpacity>
       </View>
 
+      {/* Pay & Resolve button — shown to requester on open requests */}
+      {showPayBtn && (
+        <TouchableOpacity style={s.payBtn} onPress={() => onPay(item)} activeOpacity={0.85}>
+          <Ionicons name="card-outline" size={15} color="#fff" />
+          <Text style={s.payBtnText}>Pay ₹{Number(item.price).toLocaleString()} & Resolve</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Rate button */}
       {showRateBtn && (
         <TouchableOpacity style={s.rateBtn} onPress={() => onRate(item)}>
@@ -110,7 +122,8 @@ export default function Help() {
   const [activeSort,      setActiveSort]      = useState("new");
   const [currentUser,     setCurrentUser]     = useState(null);
   const [ratedRequestIds, setRatedRequestIds] = useState(new Set());
-  const [ratingTarget,    setRatingTarget]    = useState(null); // request object to rate
+  const [ratingTarget,    setRatingTarget]    = useState(null);
+  const { razorpayModal, initiatePayment }    = useRazorpay(); // request object to rate
 
   // ── Filter / sort helper (pure, no setState calls that could loop) ──────────
   const applyFilters = (list, q, cat, sortType) => {
@@ -221,6 +234,49 @@ export default function Help() {
     }
   };
 
+  // ── Pay & Resolve handler ──────────────────────────────────────────────────
+  const handlePay = async (request) => {
+    const user = await getUser();
+    if (!user) return;
+
+    // Ask for helper email — they agreed via chat, now requester enters helper's email
+    // In a full UX this would be pre-filled from chat context, but Alert.prompt works for now
+    Alert.prompt(
+      "Pay & Resolve",
+      `Enter the email of the helper you agreed with.\nAmount: ₹${request.price} (10% platform fee applies)`,
+      async (helperEmail) => {
+        if (!helperEmail?.trim()) return;
+        try {
+          const commission = Math.round(Number(request.price) * 0.10);
+          const total      = Number(request.price);
+
+          const paymentResult = await initiatePayment({
+            amount:      total,
+            type:        "request_payment",
+            relatedId:   request._id,
+            description: `Payment for "${request.work?.slice(0, 40)}"`,
+            userEmail:   user.email,
+            userName:    user.name || "",
+          });
+
+          await requestAPI.payAndResolve(request._id, {
+            paymentId:   paymentResult.paymentId,
+            helperEmail: helperEmail.trim(),
+          });
+
+          Alert.alert(
+            "Done! 🎉",
+            `₹${total - commission} sent to helper. Platform fee ₹${commission}. Request resolved.`
+          );
+          fetchRequests();
+        } catch (err) {
+          Alert.alert("Error", err.message);
+        }
+      },
+      "plain-text"
+    );
+  };
+
   // ── Rating handler ─────────────────────────────────────────────────────────
   const handleRate = (request) => setRatingTarget(request);
 
@@ -318,6 +374,7 @@ export default function Help() {
             <RequestCard
               item={item}
               onChat={() => handleChat(item)}
+              onPay={handlePay}
               currentUserEmail={currentUser?.email}
               onRate={handleRate}
               alreadyRated={ratedRequestIds.has(item._id)}
@@ -348,6 +405,9 @@ export default function Help() {
           contextLabel={ratingTarget.work}
         />
       )}
+
+      {/* Razorpay WebView Modal */}
+      {razorpayModal}
     </View>
   );
 }
@@ -427,6 +487,18 @@ const s = StyleSheet.create({
     borderColor: "#fde68a",
   },
   rateBtnText: { fontSize: 13, fontWeight: "700", color: "#92400e" },
+
+  payBtn: {
+    marginTop: 10,
+    backgroundColor: "#028090",
+    borderRadius: 10,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  payBtnText: { fontSize: 13, fontWeight: "700", color: "#fff" },
 
   centered:    { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, marginTop: 40 },
   errorText:   { fontSize: 15, color: "#ef4444", fontWeight: "500" },

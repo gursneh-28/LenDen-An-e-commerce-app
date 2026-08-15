@@ -40,6 +40,7 @@ app.use("/api/notifications", require("./routes/notificationRoutes"));
 app.use("/api/admin-auth",  require("./routes/adminAuthRoutes"));
 app.use("/api/super-admin", require("./routes/superAdminRoutes"));
 app.use("/api/admin",       require("./routes/adminRoutes"));
+app.use("/api/payments", require("./routes/paymentRoutes"));
 
 app.get("/", (req, res) => res.json({ message: "LenDen backend running" }));
 
@@ -126,6 +127,10 @@ io.on("connection", (socket) => {
 // ── Start ─────────────────────────────────────────────────────────────────────
 async function startServer() {
   await mongoDB.connect();
+
+  // Create TTL index for OTP collection
+  const otpModel = require('./models/otpModel');
+  await otpModel.createTTLIndex();
 
   await authController.refreshAllowedDomains();
 

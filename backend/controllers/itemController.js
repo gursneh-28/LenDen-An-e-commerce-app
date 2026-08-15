@@ -1,10 +1,30 @@
-const cloudinary = require("../config/cloudinary");
-const itemModel  = require("../models/itemModel");
-const fs         = require("fs");
+const cloudinary    = require("../config/cloudinary");
+const itemModel     = require("../models/itemModel");
+const paymentModel  = require("../models/paymentModel");
+const fs            = require("fs");
 
 async function uploadItem(req, res) {
   try {
-    const { type, name, description, price, availability, category } = req.body;
+    const { type, name, description, price, availability, category, listingFeePaymentId } = req.body;
+
+    // ── Listing fee gate ──────────────────────────────────────────────────────
+    // Every upload must be backed by a verified listing_fee payment.
+    // Without this check someone could call POST /api/items/upload directly.
+    if (!listingFeePaymentId) {
+      return res.status(402).json({
+        success: false,
+        message: "Listing fee payment is required before uploading an item.",
+      });
+    }
+
+    const feeValid = await paymentModel.isValidPaidPayment(listingFeePaymentId, "listing_fee");
+    if (!feeValid) {
+      return res.status(402).json({
+        success: false,
+        message: "Listing fee payment not verified. Please complete payment first.",
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     const files = req.files || (req.file ? [req.file] : []);
 
@@ -28,17 +48,18 @@ async function uploadItem(req, res) {
 
     const itemData = {
       type,
-      name:          name.trim(),         // ← NEW required field
-      description:   description || "",   // optional
-      price:         Number(price),
-      images:        imageUrls,
-      image:         imageUrls[0],
-      category:      category || "other",
-      availability:  type === "rent" ? JSON.parse(availability || "[]") : [],
-      uploadedBy:    req.user.email,
-      uploaderName:  req.user.name,
-      uploaderPhone: req.user.phone || null,
-      org:           req.user.org,
+      name:               name.trim(),
+      description:        description || "",
+      price:              Number(price),
+      images:             imageUrls,
+      image:              imageUrls[0],
+      category:           category || "other",
+      availability:       type === "rent" ? JSON.parse(availability || "[]") : [],
+      uploadedBy:         req.user.email,
+      uploaderName:       req.user.name,
+      uploaderPhone:      req.user.phone || null,
+      org:                req.user.org,
+      listingFeePaymentId,  // store for audit trail
     };
 
     const result = await itemModel.createItem(itemData);
@@ -87,8 +108,8 @@ async function updateItem(req, res) {
 
     const updateFields = { price: Number(price) };
 
-    if (name && name.trim())       updateFields.name        = name.trim(); // ← NEW
-    if (description !== undefined) updateFields.description = description; // can be ""
+    if (name && name.trim())       updateFields.name        = name.trim();
+    if (description !== undefined) updateFields.description = description;
     if (category)                  updateFields.category    = category;
 
     await itemModel.updateItem(id, updateFields);

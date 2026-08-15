@@ -23,5 +23,6 @@ router.patch('/users/:userId/block', adminController.blockUser);
 router.delete('/items/:itemId', adminController.deleteUserItem);
 router.delete('/requests/:requestId', adminController.deleteUserRequest);
 router.get('/stats', adminController.getOrganizationStats);
+router.patch('/users/:userId/promote', adminController.promoteToAdmin);
 
 module.exports = router;

@@ -15,7 +15,7 @@ async function createRequest(data) {
 
 async function getAllRequests(org) {
   const collection = await getCollection();
-  return await collection.find({ org: org }).sort({ createdAt: -1 }).toArray();
+  return await collection.find({ org }).sort({ createdAt: -1 }).toArray();
 }
 
 async function getRequestsByEmail(email) {
@@ -36,6 +36,22 @@ async function updateRequest(id, fields) {
   );
 }
 
+async function resolveRequest(id, resolvedByEmail, paymentId) {
+  const collection = await getCollection();
+  await collection.updateOne(
+    { _id: new ObjectId(id) },
+    {
+      $set: {
+        status:        "resolved",
+        resolvedBy:    resolvedByEmail,
+        paymentId,               // store for audit trail
+        resolvedAt:    new Date(),
+        updatedAt:     new Date(),
+      }
+    }
+  );
+}
+
 async function deleteRequest(id) {
   const collection = await getCollection();
   return await collection.deleteOne({ _id: new ObjectId(id) });
@@ -47,5 +63,6 @@ module.exports = {
   getRequestsByEmail,
   getRequestById,
   updateRequest,
+  resolveRequest,
   deleteRequest,
 };

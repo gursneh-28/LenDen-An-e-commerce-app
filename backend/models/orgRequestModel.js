@@ -79,6 +79,11 @@ async function deleteRequest(id) {
     return result.deletedCount > 0;
 }
 
+async function findApprovedByOrg(orgDomain) {
+    const collection = await getCollection();
+    return await collection.findOne({ orgDomain, status: 'approved' });
+}
+
 module.exports = {
     createOrgRequest,
     findById,
@@ -87,5 +92,6 @@ module.exports = {
     findByStatus,
     updateStatus,
     getOrgRequestWithDetails,
-    deleteRequest
+    deleteRequest,
+    findApprovedByOrg
 };
