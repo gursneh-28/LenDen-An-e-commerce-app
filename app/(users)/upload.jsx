@@ -16,8 +16,6 @@ import * as ImageManipulator from "expo-image-manipulator";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
 import { itemAPI } from "../../services/api";
-import { useRazorpay } from "../../services/paymentService";
-import { getUser } from "../../services/api";
 
 const MAX_IMAGES = 5;
 
@@ -30,11 +28,8 @@ const CATEGORIES = [
   { key: "other",       label: "Other",       icon: "📦" },
 ];
 
-const LISTING_FEE_PERCENT = 0.02; // 2%
-
 export default function Upload() {
   const router = useRouter();
-  const { razorpayModal, initiatePayment } = useRazorpay();
 
   const [type,        setType]        = useState("sell");
   const [images,      setImages]      = useState([]);
@@ -42,17 +37,13 @@ export default function Upload() {
   const [description, setDescription] = useState("");
   const [price,       setPrice]       = useState("");
   const [category,    setCategory]    = useState("other");
+  const [upiId,       setUpiId]       = useState(""); // ✅ NEW: UPI ID
   const [loading,     setLoading]     = useState(false);
 
   const [dateRanges,   setDateRanges]   = useState([]);
   const [currentRange, setCurrentRange] = useState({ start: null, end: null });
   const [pickerMode,   setPickerMode]   = useState(null);
   const [showPicker,   setShowPicker]   = useState(false);
-
-  // Computed listing fee shown to user
-  const listingFee = price && !isNaN(Number(price))
-    ? Math.ceil(Number(price) * LISTING_FEE_PERCENT)
-    : 0;
 
   // ── Image helpers ──────────────────────────────────────────────────────────
   const pickImages = async () => {
@@ -160,50 +151,36 @@ export default function Upload() {
       return Alert.alert("Invalid price", "Enter a valid price.");
     if (type === "rent" && dateRanges.length === 0)
       return Alert.alert("No availability", "Add at least one availability range.");
-
-    // ── Show listing fee confirmation before payment ──────────────────────
-    Alert.alert(
-      "Listing Fee",
-      `A non-refundable listing fee of ₹${listingFee} (2% of ₹${price}) is required to publish this item.\n\nThis keeps the platform spam-free.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: `Pay ₹${listingFee} & Upload`, onPress: proceedWithPaymentAndUpload },
-      ]
-    );
+    // ✅ UPI validation — optional but warn if missing
+    if (!upiId.trim()) {
+      return new Promise((resolve) => {
+        Alert.alert(
+          "No UPI ID",
+          "Without a UPI ID, buyers won't be able to pay you directly. Add one?",
+          [
+            { text: "Add UPI", style: "cancel", onPress: resolve },
+            { text: "Skip & Upload", onPress: () => { resolve(); uploadItem(); } },
+          ]
+        );
+      });
+    }
+    uploadItem();
   };
 
-  const proceedWithPaymentAndUpload = async () => {
+  const uploadItem = async () => {
     try {
       setLoading(true);
 
-      // Step 1: get current user for Razorpay prefill
-      const user = await getUser();
-
-      // Step 2: initiate listing fee payment
-      let paymentResult;
-      try {
-        paymentResult = await initiatePayment({
-          amount:      listingFee,
-          type:        "listing_fee",
-          relatedId:   `upload_${Date.now()}`,   // temp id before item is created
-          description: `Listing fee for "${name.trim()}"`,
-          userEmail:   user?.email || "",
-          userName:    user?.name  || "",
-        });
-      } catch (payErr) {
-        // User cancelled or payment failed
-        Alert.alert("Payment Cancelled", payErr.message || "Listing fee payment was not completed.");
-        return;
-      }
-
-      // Step 3: build FormData and upload — pass the verified paymentId
       const formData = new FormData();
-      formData.append("type",                 type);
-      formData.append("name",                 name.trim());
-      formData.append("description",          description);
-      formData.append("price",                price);
-      formData.append("category",             category);
-      formData.append("listingFeePaymentId",  paymentResult.paymentId);  // ← this is the gate key
+      formData.append("type",        type);
+      formData.append("name",        name.trim());
+      formData.append("description", description);
+      formData.append("price",       price);
+      formData.append("category",    category);
+      // ✅ NEW: include UPI ID
+      if (upiId.trim()) {
+        formData.append("uploaderUPI", upiId.trim());
+      }
 
       images.forEach((img, index) => {
         formData.append("images", {
@@ -230,11 +207,13 @@ export default function Upload() {
         Alert.alert("Success 🎉", "Item uploaded!", [
           { text: "OK", onPress: () => router.push("/home") },
         ]);
+        // Reset form
         setImages([]);
         setName("");
         setDescription("");
         setPrice("");
         setCategory("other");
+        setUpiId("");
         setDateRanges([]);
       }
     } catch (err) {
@@ -323,7 +302,10 @@ export default function Upload() {
       />
 
       {/* ── Price ── */}
-      <Text style={s.label}>Price {type === "rent" ? "(per day / period)" : ""}</Text>
+      <Text style={s.label}>
+        Price {type === "rent" ? "(per day / period)" : ""}
+        <Text style={s.required}> *</Text>
+      </Text>
       <TextInput
         style={s.input}
         placeholder="₹ 0.00"
@@ -333,16 +315,29 @@ export default function Upload() {
         keyboardType="decimal-pad"
       />
 
-      {/* ── Listing fee preview ── */}
-      {listingFee > 0 && (
-        <View style={s.feeBox}>
-          <Text style={s.feeLabel}>Listing fee (2%)</Text>
-          <Text style={s.feeAmount}>₹{listingFee}</Text>
-        </View>
-      )}
+      {/* ✅ NEW: UPI ID field */}
+      <Text style={s.label}>
+        Your UPI ID <Text style={s.optional}>(for receiving payment)</Text>
+      </Text>
+      <View style={s.upiRow}>
+        <Text style={s.upiAt}>@</Text>
+        <TextInput
+          style={s.upiInput}
+          placeholder="yourname@upi or 9876543210@paytm"
+          placeholderTextColor="#9ca3af"
+          value={upiId}
+          onChangeText={setUpiId}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+        />
+      </View>
+      <Text style={s.upiHint}>
+        💡 Buyers will pay you directly via GPay / PhonePe / Paytm
+      </Text>
 
       {/* ── Category ── */}
-      <Text style={s.label}>Category</Text>
+      <Text style={[s.label, { marginTop: 18 }]}>Category</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -425,21 +420,13 @@ export default function Upload() {
         </View>
       )}
 
-      {/* Razorpay WebView Modal */}
-      {razorpayModal}
-
       {/* ── Submit ── */}
       <TouchableOpacity style={s.submitBtn} onPress={handleSubmit} disabled={loading}>
         {loading
           ? <ActivityIndicator color="#fff" />
-          : <Text style={s.submitText}>
-              {listingFee > 0 ? `Pay ₹${listingFee} & Upload` : "Upload Item"}
-            </Text>
+          : <Text style={s.submitText}>Upload Item</Text>
         }
       </TouchableOpacity>
-      <Text style={s.feeNote}>
-        A 2% listing fee is charged to keep the platform spam-free. You earn it back when your item sells.
-      </Text>
     </ScrollView>
   );
 }
@@ -496,19 +483,16 @@ const s = StyleSheet.create({
   },
   textArea: { height: 90, textAlignVertical: "top", paddingTop: 13 },
 
-  // Listing fee preview box
-  feeBox: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    backgroundColor: "#f0fdf4", borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-    marginBottom: 16, borderWidth: 1, borderColor: "#bbf7d0",
+  // ✅ NEW: UPI styles
+  upiRow: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#fff", borderRadius: 12,
+    borderWidth: 1, borderColor: "#e5e5e5",
+    paddingHorizontal: 16, marginBottom: 6,
   },
-  feeLabel:  { fontSize: 13, color: "#166534", fontWeight: "500" },
-  feeAmount: { fontSize: 15, color: "#166534", fontWeight: "700" },
-  feeNote: {
-    textAlign: "center", fontSize: 11, color: "#9ca3af",
-    marginTop: 12, lineHeight: 16,
-  },
+  upiAt: { fontSize: 18, color: "#6366f1", fontWeight: "700", marginRight: 6 },
+  upiInput: { flex: 1, fontSize: 15, color: "#1a1a1a", paddingVertical: 13 },
+  upiHint: { fontSize: 11, color: "#9ca3af", marginBottom: 18 },
 
   catChip: {
     flexDirection: "row", alignItems: "center",

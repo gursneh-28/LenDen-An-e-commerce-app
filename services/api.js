@@ -109,11 +109,6 @@ export const orderAPI = {
   updateStatus: (id, status) => apiRequest(`/orders/${id}/status`, "PATCH", { status }),
 };
 
-export const paymentAPI = {
-  createRazorpayOrder: (d) => apiRequest("/payments/create-order", "POST", d),
-  verifyPayment: (d) => apiRequest("/payments/verify", "POST", d),
-};
-
 export const userAPI = {
   getWishlist: async () => {
     try {
