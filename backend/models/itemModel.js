@@ -12,8 +12,9 @@ async function createItem(itemData) {
 
   const item = {
     ...itemData,
-    name:      itemData.name || "",        // ← NEW
+    name:      itemData.name || "",        
     category:  itemData.category || "other",
+    uploaderUPI: itemData.uploaderUPI || "",
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -57,13 +58,12 @@ async function getItemsByCategory(org, category) {
     .toArray();
 }
 
-// name added to search — searching by product name now works
 async function searchItems(org, searchTerm) {
   const collection = await getCollection();
   return await collection.find({
     org,
     $or: [
-      { name:         { $regex: searchTerm, $options: "i" } }, // ← NEW
+      { name:         { $regex: searchTerm, $options: "i" } },
       { description:  { $regex: searchTerm, $options: "i" } },
       { uploaderName: { $regex: searchTerm, $options: "i" } },
     ],

@@ -58,6 +58,7 @@ async function uploadItem(req, res) {
       uploadedBy:         req.user.email,
       uploaderName:       req.user.name,
       uploaderPhone:      req.user.phone || null,
+      uploaderUPI: req.body.uploaderUPI || "",
       org:                req.user.org,
       listingFeePaymentId,  // store for audit trail
     };
